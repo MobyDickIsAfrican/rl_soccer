@@ -40,11 +40,11 @@ class ReplayBuffer:
 
 
 def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
+        steps_per_epoch=1054, epochs=100, replay_size=int(1e6), gamma=0.99, 
         polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
         update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
-        noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1):
+        noise_clip=0.5, policy_delay=2, num_test_episodes=100, max_ep_len=1054, 
+        logger_kwargs=dict(), save_freq=1, sess=None):
     """
     Twin Delayed Deep Deterministic Policy Gradient (TD3)
 
@@ -209,7 +209,8 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     target_init = tf.group([tf.assign(v_targ, v_main)
                               for v_main, v_targ in zip(get_vars('main'), get_vars('target'))])
 
-    sess = tf.Session()
+    if sess is None:
+        sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     sess.run(target_init)
 
@@ -223,16 +224,18 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
     def test_agent():
         for j in range(num_test_episodes):
-            o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
+            o = test_env.reset()
+            d, ep_ret, ep_len = False, 0, 0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = test_env.step(get_action(o, 0))
-                ep_ret += r
+                o, r, d, _ = test_env.step([get_action(o[j], 0) for j in range(len(o))])
+                ep_ret += r[0]
                 ep_len += 1
             logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
 
     start_time = time.time()
-    o, ep_ret, ep_len = env.reset(), 0, 0
+    o = env.reset()
+    ep_ret, ep_len = 0, 0
     total_steps = steps_per_epoch * epochs
 
     # Main loop: collect experience in env and update/log each epoch
@@ -242,13 +245,13 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         # from a uniform distribution for better exploration. Afterwards, 
         # use the learned policy (with some noise, via act_noise). 
         if t > start_steps:
-            a = get_action(o, act_noise)
+            a = [get_action(obs, act_noise) for obs in o]
         else:
-            a = env.action_space.sample()
+            a = [env.action_space.sample() for obs in o]
 
         # Step the env
         o2, r, d, _ = env.step(a)
-        ep_ret += r
+        ep_ret += r[0]
         ep_len += 1
 
         # Ignore the "done" signal if it comes from hitting the time
@@ -257,7 +260,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         d = False if ep_len==max_ep_len else d
 
         # Store experience to replay buffer
-        replay_buffer.store(o, a, r, o2, d)
+        [replay_buffer.store(o[j], a[j], r[j], o2[j], d) for j in range(len(o))]
 
         # Super critical, easy to overlook step: make sure to update 
         # most recent observation!
@@ -303,7 +306,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             logger.log_tabular('EpRet', with_min_and_max=True)
             logger.log_tabular('TestEpRet', with_min_and_max=True)
             logger.log_tabular('EpLen', average_only=True)
-            logger.log_tabular('TestEpLen', average_only=True)
+            logger.log_tabular('TestEpLen', with_min_and_max=True)
             logger.log_tabular('TotalEnvInteracts', t)
             logger.log_tabular('Q1Vals', with_min_and_max=True)
             logger.log_tabular('Q2Vals', with_min_and_max=True)
@@ -314,20 +317,26 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
 if __name__ == '__main__':
     import argparse
+    import dm_soccer2gym
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='HalfCheetah-v2')
     parser.add_argument('--hid', type=int, default=256)
     parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--epochs', type=int, default=50)
-    parser.add_argument('--exp_name', type=str, default='td3')
+    parser.add_argument('--epochs', type=int, default=10000)
+    parser.add_argument('--exp_name', type=str, default='td3_soccer')
+    parser.add_argument("--gpu", type=float, default=0.2)
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed)
+    logger_kwargs = setup_logger_kwargs(args.exp_name, data_dir="/home/pavan/Proyecto_EL7021/models/TD3", datestamp=True)
+
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu)
+
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     
-    td3(lambda : gym.make(args.env), actor_critic=core.mlp_actor_critic,
+    td3(lambda : dm_soccer2gym.make('1vs0reach', task_kwargs={"rew_type": "quick_reach", "time_limit": 26.34, "disable_jump": True, "dist_thresh": 0.03}), 
+                 actor_critic=core.mlp_actor_critic,
         ac_kwargs=dict(hidden_sizes=[args.hid]*args.l),
-        gamma=args.gamma, seed=args.seed, epochs=args.epochs,
-        logger_kwargs=logger_kwargs)
+        gamma=args.gamma, epochs=args.epochs,
+        sess=sess, logger_kwargs=logger_kwargs)    
+

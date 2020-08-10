@@ -159,7 +159,7 @@ class Logger:
             with open(osp.join(self.output_dir, "config.json"), 'w') as out:
                 out.write(output)
 
-    def save_state(self, state_dict, itr=None):
+    def save_state(self, state_dict, itr=None, save_pkl=False):
         """
         Saves the state of an experiment.
 
@@ -182,12 +182,13 @@ class Logger:
         """
         if proc_id()==0:
             fname = 'vars.pkl' if itr is None else 'vars%d.pkl'%itr
-            try:
-                joblib.dump(state_dict, osp.join(self.output_dir, fname))
-            except:
-                self.log('Warning: could not pickle state_dict.', color='red')
+            if save_pkl:
+                try:
+                    joblib.dump(state_dict, osp.join(self.output_dir, fname))
+                except:
+                    self.log('Warning: could not pickle state_dict.', color='red')
             if hasattr(self, 'tf_saver_elements'):
-                self._tf_simple_save(itr)
+                self._tf_simple_save(itr, save_pkl)
             if hasattr(self, 'pytorch_saver_elements'):
                 self._pytorch_simple_save(itr)
 
@@ -213,7 +214,7 @@ class Logger:
         self.tf_saver_info = {'inputs': {k:v.name for k,v in inputs.items()},
                               'outputs': {k:v.name for k,v in outputs.items()}}
 
-    def _tf_simple_save(self, itr=None):
+    def _tf_simple_save(self, itr=None, save_pkl=False):
         """
         Uses simple_save to save a trained model, plus info to make it easy
         to associated tensors to variables after restore. 
@@ -228,7 +229,9 @@ class Logger:
                 # so just delete fpath if it's there.
                 shutil.rmtree(fpath)
             tf.saved_model.simple_save(export_dir=fpath, **self.tf_saver_elements)
-            joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
+            if save_pkl:
+                joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
+                joblib.dump(self.tf_saver_info, osp.join(self.output_dir, 'model_info.pkl'))
     
 
     def setup_pytorch_saver(self, what_to_save):
