@@ -31,7 +31,11 @@ def load_policy_and_env(fpath, itr='last', deterministic=False, sess=None):
         # check filenames for epoch (AKA iteration) numbers, find maximum value
 
         if backend == 'tf1':
-            saves = [int(x[8:]) for x in os.listdir(fpath) if 'tf1_save' in x and len(x)>8]
+            saves = []
+            for x in os.listdir(osp.join(fpath, 'tf1_save')):
+                name, ext = osp.splitext(x)
+                if 'saved_model' in name and len(name) > 11 and ext == '.meta':
+                    saves.append(int(name[11:]))
 
         elif backend == 'pytorch':
             pytsave_path = osp.join(fpath, 'pyt_save')
@@ -63,11 +67,13 @@ def load_policy_and_env(fpath, itr='last', deterministic=False, sess=None):
 
     return env, get_action
 
-
+'''
 def load_tf_model(fpath, sess, itr=""):
     """ Load a tensorflow action op"""
 
-    fname = osp.join(fpath, 'tf1_save'+itr)
+    fname = osp.join(fpath, 'tf1_save', 'saved_model')
+    if len(itr) > 0:
+        fname += f'_{itr}'
     print('\n\nLoading from %s.\n\n'%fname)
 
     tf.saved_model.loader.load(
@@ -75,12 +81,15 @@ def load_tf_model(fpath, sess, itr=""):
                 [tf.saved_model.tag_constants.SERVING],
                 fname
             )
+'''
 
 
 def load_tf_policy(fpath, itr, deterministic=False, sess=None):
     """ Load a tensorflow policy saved with Spinning Up Logger."""
 
-    fname = osp.join(fpath, 'tf1_save'+itr)
+    fname = osp.join(fpath, 'tf1_save', 'saved_model')
+    if len(itr) > 0:
+        fname += f'_{itr}'
     print('\n\nLoading from %s.\n\n'%fname)
 
     # load the things!

@@ -56,12 +56,11 @@ def restore_tf_graph(sess, fpath):
         A dictionary mapping from keys to tensors in the computation graph
         loaded from ``fpath``. 
     """
-    tf.saved_model.loader.load(
-                sess,
-                [tf.saved_model.tag_constants.SERVING],
-                fpath
-            )
-    model_info = joblib.load(osp.join(fpath, 'model_info.pkl'))
+    saver = tf.train.import_meta_graph(fpath + '.meta')
+    
+    saver.restore(sess, fpath)
+    
+    model_info = joblib.load(osp.join(osp.split(osp.abspath(fpath))[0], 'model_info.pkl'))
     graph = tf.get_default_graph()
     model = dict()
     model.update({k: graph.get_tensor_by_name(v) for k,v in model_info['inputs'].items()})
@@ -213,6 +212,7 @@ class Logger:
         self.tf_saver_elements = dict(session=sess, inputs=inputs, outputs=outputs)
         self.tf_saver_info = {'inputs': {k:v.name for k,v in inputs.items()},
                               'outputs': {k:v.name for k,v in outputs.items()}}
+        self.saver = tf.train.Saver()
 
     def _tf_simple_save(self, itr=None, save_pkl=False):
         """
@@ -222,13 +222,13 @@ class Logger:
         if proc_id()==0:
             assert hasattr(self, 'tf_saver_elements'), \
                 "First have to setup saving with self.setup_tf_saver"
-            fpath = 'tf1_save' + ('%d'%itr if itr is not None else '')
+            fpath = 'tf1_save'
             fpath = osp.join(self.output_dir, fpath)
-            if osp.exists(fpath):
-                # simple_save refuses to be useful if fpath already exists,
-                # so just delete fpath if it's there.
-                shutil.rmtree(fpath)
-            tf.saved_model.simple_save(export_dir=fpath, **self.tf_saver_elements)
+            if itr is None:
+                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'))
+            else:
+                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'),
+                                global_step=itr)
             if save_pkl:
                 joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
                 joblib.dump(self.tf_saver_info, osp.join(self.output_dir, 'model_info.pkl'))
