@@ -5,7 +5,7 @@ import time
 from spinup.algos.tf1.td3 import core
 from spinup.algos.tf1.td3.core import get_vars
 from spinup.utils.logx import EpochLogger
-from spinup.utils.test_policy import load_policy_and_env
+
 
 class ReplayBuffer:
     """
@@ -159,6 +159,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     num_players = env.num_players
+    assert num_players == test_env.num_players
 
     if sess is None:
         sess = tf.Session()
@@ -187,7 +188,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         _, q1_targ, q2_targ, _ = actor_critic(x2_ph, a2, **ac_kwargs)
 
     # Experience buffer
-    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // env.num_players) for i in range(env.num_players)}
+    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // num_players) for i in range(num_players)}
 
     # Count variables
     var_counts = tuple(core.count_vars(scope, "restored") for scope in ['main/pi', 'main/q1', 'main/q2', 'main'])
@@ -247,11 +248,11 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
 
     def test_agent():
         success_rate = 0
-        avg_ret = np.zeros(env.num_players)
+        avg_ret = np.zeros(num_players)
         for j in range(num_test_episodes):
             o = test_env.reset()
-            d, ep_ret, ep_ret_sparse, ep_len = False, np.zeros(env.num_players), np.zeros(env.num_players), 0
-            vel_to_ball = [[] for j in range(env.num_players)]
+            d, ep_ret, ep_ret_sparse, ep_len = False, np.zeros(num_players), np.zeros(num_players), 0
+            vel_to_ball = [[] for j in range(num_players)]
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
                 o, r, d, _ = test_env.step(get_action(np.array(o), 0, num_players))
@@ -259,13 +260,13 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
                     test_env.render()
                 ep_ret += np.array(r)
                 ep_ret_sparse += np.array(test_env.timestep.reward)
-                [vel_to_ball[j].append(env.timestep.observation[j]['stats_vel_to_ball']) for j in range(env.num_players)]
+                [vel_to_ball[j].append(test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(num_players)]
                 ep_len += 1
-            success_rate += (ep_len < max_ep_len) / num_test_episodes
+            success_rate += (ep_len <= max_ep_len and test_env.timestep.reward[0] > 0) / num_test_episodes
             avg_ret += ep_ret / num_test_episodes
 
             ep_ret_dict = {}
-            for i in range(env.num_players):
+            for i in range(num_players):
                 ep_ret_dict[f"TestEpRet_P{i + 1}"] = ep_ret[i]
                 ep_ret_dict[f"TestEpRetSparse_P{i + 1}"] = ep_ret_sparse[i]
                 ep_ret_dict[f"TestEpStatsVelToBall_P{i + 1}"] = np.mean(vel_to_ball[i])
@@ -276,7 +277,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
 
     start_time = time.time()
     o = env.reset()
-    ep_ret, ep_len = np.zeros(env.num_players), 0
+    ep_ret, ep_len = np.zeros(num_players), 0
     total_steps = steps_per_epoch * epochs
     pkl_saved = False
 
@@ -303,7 +304,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         d = False if ep_len==max_ep_len else d
 
         # Store experience to replay buffer
-        [replay_buffer[j].store(o[j].copy(), a[j].copy(), r[j], o2[j].copy(), d) for j in range(env.num_players)]
+        [replay_buffer[j].store(o[j].copy(), a[j].copy(), r[j], o2[j].copy(), d) for j in range(num_players)]
 
         # Super critical, easy to overlook step: make sure to update 
         # most recent observation!
@@ -311,15 +312,15 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
 
         # End of trajectory handling
         if d or (ep_len == max_ep_len):
-            ep_ret_dict = {f"EpRet_P{i + 1}": ep_ret[i] for i in range(env.num_players)}
+            ep_ret_dict = {f"EpRet_P{i + 1}": ep_ret[i] for i in range(num_players)}
             logger.store(**ep_ret_dict, EpLen=ep_len)
-            o, ep_ret, ep_len = env.reset(), np.zeros(env.num_players), 0
+            o, ep_ret, ep_len = env.reset(), np.zeros(num_players), 0
 
         # Update handling
         if t >= update_after and t % update_every == 0:
             for j in range(update_every):
-                batch_dicts = [replay_buffer[j].sample_batch(batch_size // env.num_players) for j in range(env.num_players)]
-                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(env.num_players)], axis=0) for key in batch_dicts[0].keys()}
+                batch_dicts = [replay_buffer[j].sample_batch(batch_size // num_players) for j in range(num_players)]
+                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(num_players)], axis=0) for key in batch_dicts[0].keys()}
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
@@ -349,6 +350,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
                 logger.save_state({'env': env}, None, not(pkl_saved))
                 if not pkl_saved:
                     pkl_saved = True
+                    tf.get_default_graph().finalize()
                 success_rate = act_suc_rate
                 max_ep_ret = act_avg_ret
                 print("Saving model ...")
@@ -365,7 +367,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             if t >= update_after:
                 logger.log_tabular('Epoch', epoch)
 
-                for i in range(env.num_players):
+                for i in range(num_players):
                     logger.log_tabular(f'EpRet_P{i + 1}', with_min_and_max=True)
                     logger.log_tabular(f'TestEpRet_P{i + 1}', with_min_and_max=True)
                     logger.log_tabular(f'TestEpRetSparse_P{i + 1}', with_min_and_max=True)
@@ -409,3 +411,4 @@ if __name__ == '__main__':
         gamma=args.gamma, epochs=args.epochs,
         logger_kwargs=logger_kwargs,
         sess=sess, max_ep_len=ceil(args.time_limit / args.control_timestep))
+
