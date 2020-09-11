@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-# initializer = tf.random_uniform_initializer(minval=-3e-4, maxval=3e-4)
+u_initializer = tf.random_uniform_initializer(minval=-3e-3, maxval=3e-3)
 
 
 def placeholder(dim=None):
@@ -10,10 +10,12 @@ def placeholder(dim=None):
 def placeholders(*args):
     return [placeholder(dim) for dim in args]
 
-def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None):
+def mlp(x, hidden_sizes=(32,), activation=tf.tanh, output_activation=None, hl_layer_init=None, 
+        last_layer_init=None):
     for h in hidden_sizes[:-1]:
-        x = tf.layers.dense(x, units=h, activation=activation)
-    return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation)
+        x = tf.layers.dense(x, units=h, activation=activation, kernel_initializer=hl_layer_init)
+    return tf.layers.dense(x, units=hidden_sizes[-1], activation=output_activation, 
+                           kernel_initializer=last_layer_init)
 
 def get_vars(scope, ex_scope=""):
     test = lambda x, y: x in y if len(x) else False
@@ -53,7 +55,7 @@ def mlp_actor_critic_heads(x, a, hidden_sizes={"head":(32, 64), "concat":(256, 2
         heads_own  = [mlp(x[:, 2 * i:2 * (i + 1)], list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(x[:, 18 + 6 * i:18 + 6 * (i + 1)], list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]
         joint_head = mlp(tf.concat(heads_own + heads_other, axis=-1), list(hidden_sizes["concat"]), activation, activation)
-        pi = act_limit * tf.concat([mlp(joint_head, [1], activation, output_activation) for i in range(act_dim)], axis=-1)
+        pi = act_limit * mlp(joint_head, [act_dim], activation, output_activation, last_layer_init=u_initializer)
     with tf.variable_scope('q1'):
         heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(tf.concat([x[:, 18 + 6 * i:18 + 6 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]

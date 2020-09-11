@@ -39,12 +39,13 @@ class ReplayBuffer:
 
 
 
-def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=1054, epochs=100, replay_size=int(5e6), gamma=0.99, 
+def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None, 
+        steps_per_epoch=10000, epochs=10000, replay_size=int(4e6), gamma=0.99, 
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=10000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
-        noise_clip=0.5, policy_delay=2, num_test_episodes=30, max_ep_len=1054, 
-        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", gradient_clipping=False):
+        noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=1054, 
+        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", 
+        gradient_clipping=False, render=False, test_env_fn=None):
     """
     Twin Delayed Deep Deterministic Policy Gradient (TD3)
 
@@ -147,7 +148,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env, test_env = env_fn(), env_fn()
+    env, test_env = env_fn(), test_env_fn() if test_env_fn is not None else env_fn()
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
@@ -157,21 +158,10 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     num_players = env.num_players
+    assert num_players == test_env.num_players
 
     if sess is None:
         sess = tf.Session()
-
-        # graph = tf.get_default_graph()
-        # reach_vars = {}
-        # for _scope in ["main", "target"]:
-        #     for _fun in ["pi", "q1", "q2"]:
-        #         for layer in ["", "_1", "_2"]:
-        #             for _var in ["kernel", "bias"]:
-        #                 var_name = f"{_scope}/{_fun}/{'dense' + layer}/{_var}:0"
-        #                 reach_vars[var_name] = graph.get_tensor_by_name(var_name)
-
-        # reach_vars = sess.run(reach_vars)
-        # tf.reset_default_graph()
 
     # Inputs to computation graph
     x_ph, a_ph, x2_ph, r_ph, d_ph = core.placeholders(obs_dim, act_dim, obs_dim, None, None)
@@ -198,10 +188,10 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         _, q1_targ, q2_targ, _ = actor_critic(x2_ph, a2, **ac_kwargs)
 
     # Experience buffer
-    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // env.num_players) for i in range(env.num_players)}
+    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // num_players) for i in range(num_players)}
 
     # Count variables
-    var_counts = tuple(core.count_vars(scope, "restored") for scope in ['main/pi', 'main/q1', 'main/q2', 'main'])
+    var_counts = tuple(core.count_vars(scope) for scope in ['main/pi', 'main/q1', 'main/q2', 'main'])
     print('\nNumber of parameters: \t pi: %d, \t q1: %d, \t q2: %d, \t total: %d\n'%var_counts)
 
     # Bellman backup for Q functions, using Clipped Double-Q targets
@@ -219,21 +209,21 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
     q_optimizer = tf.train.AdamOptimizer(learning_rate=q_lr)
 
     if gradient_clipping:
-        grads_and_vars_pi  = pi_optimizer.compute_gradients(pi_loss, var_list=(get_vars('main/pi', 'restored')))
+        grads_and_vars_pi  = pi_optimizer.compute_gradients(pi_loss, var_list=(get_vars('main/pi')))
         grads_pi = [g for g, v in grads_and_vars_pi]
         vars_pi = [v for g, v in grads_and_vars_pi]
         capped_grads_pi, __ = tf.clip_by_global_norm(grads_pi, 1.0)
         train_pi_op = pi_optimizer.apply_gradients(zip(capped_grads_pi, vars_pi))
 
-        grads_and_vars_q = q_optimizer.compute_gradients(q_loss, var_list=(get_vars('main/q', 'restored')))
+        grads_and_vars_q = q_optimizer.compute_gradients(q_loss, var_list=(get_vars('main/q')))
         grads_q = [g for g, v in grads_and_vars_q]
         vars_q = [v for g, v in grads_and_vars_q]
         capped_grads_q, __ = tf.clip_by_global_norm(grads_q, 1.0)
         train_q_op = q_optimizer.apply_gradients(zip(capped_grads_q, vars_q))
 
     else:
-        train_pi_op = pi_optimizer.minimize(pi_loss, var_list=(get_vars('main/pi', 'restored')))
-        train_q_op = q_optimizer.minimize(q_loss, var_list=(get_vars('main/q', 'restored')))
+        train_pi_op = pi_optimizer.minimize(pi_loss, var_list=(get_vars('main/pi')))
+        train_q_op = q_optimizer.minimize(q_loss, var_list=(get_vars('main/q')))
 
     sess.run(tf.global_variables_initializer())
 
@@ -245,11 +235,11 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
     # Polyak averaging for target variables
     target_update = tf.group([tf.assign(v_targ, polyak*v_targ + (1-polyak)*v_main)
-                              for v_main, v_targ in zip(get_vars('main', 'restored'), get_vars('target', 'restored'))])
+                              for v_main, v_targ in zip(get_vars('main'), get_vars('target'))])
 
     # Initializing targets to match main variables
     target_init = tf.group([tf.assign(v_targ, v_main)
-                              for v_main, v_targ in zip(get_vars('main', 'restored'), get_vars('target', 'restored'))])
+                              for v_main, v_targ in zip(get_vars('main'), get_vars('target'))])
 
 
     sess.run(target_init)
@@ -264,29 +254,40 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
     def test_agent():
         success_rate = 0
-        avg_ret = np.zeros(env.num_players)
+        avg_ret = np.zeros(num_players)
         for j in range(num_test_episodes):
             o = test_env.reset()
-            d, ep_ret, ep_len = False, np.zeros(env.num_players), 0
+            d, ep_ret, ep_ret_sparse, ep_len = False, np.zeros(num_players), np.zeros(num_players), 0
+            vel_to_ball = [[] for j in range(num_players)]
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
                 act_1 = get_solo_action(o[0]) if aux_int else []
                 a = act_1 + get_action(np.array(o[aux_int:]), 0, num_players - aux_int)
                 o, r, d, _ = test_env.step(a)
-                ep_ret += np.array(r)
-                ep_len += 1
-                if j == 0:
+                if j == 0 and render:
                     test_env.render()
-            success_rate += aux_int * (ep_len < max_ep_len and r[1] > 0) / num_test_episodes + (1 - aux_int) * (ep_len < max_ep_len) / num_test_episodes
+                ep_ret += np.array(r)
+                ep_ret_sparse += np.array(test_env.timestep.reward)
+                [vel_to_ball[j].append(test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(num_players)]
+                ep_len += 1
+            success_rate += aux_int * (ep_len <= max_ep_len and test_env.timestep.reward[1] > 0) / num_test_episodes + (1 - aux_int) * (ep_len <= max_ep_len) / num_test_episodes
             avg_ret += ep_ret / num_test_episodes
-            ep_ret = {f"TestEpRet_P{i + 1}": ep_ret[i] for i in range(env.num_players)}
-            logger.store(**ep_ret, TestEpLen=ep_len)
+
+            ep_ret_dict = {}
+            for i in range(num_players):
+                ep_ret_dict[f"TestEpRet_P{i + 1}"] = ep_ret[i]
+                ep_ret_dict[f"TestEpRetSparse_P{i + 1}"] = ep_ret_sparse[i]
+                ep_ret_dict[f"TestEpStatsVelToBall_P{i + 1}"] = np.mean(vel_to_ball[i])
+
+            logger.store(**ep_ret_dict, TestEpLen=ep_len)
+
         return success_rate, avg_ret
 
     start_time = time.time()
     o = env.reset()
-    ep_ret, ep_len = np.zeros(env.num_players), 0
+    ep_ret, ep_len = np.zeros(num_players), 0
     total_steps = steps_per_epoch * epochs
+    pkl_saved = False
 
     # Main loop: collect experience in env and update/log each epoch
     for t in range(total_steps):
@@ -313,7 +314,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
         d = False if ep_len==max_ep_len else d
 
         # Store experience to replay buffer
-        [replay_buffer[j].store(o[j], a[j], r[j], o2[j], d) for j in range(env.num_players)]
+        [replay_buffer[j].store(o[j].copy(), a[j].copy(), r[j], o2[j].copy(), d) for j in range(num_players)]
 
         # Super critical, easy to overlook step: make sure to update 
         # most recent observation!
@@ -321,16 +322,15 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 
         # End of trajectory handling
         if d or (ep_len == max_ep_len):
-            ep_ret_dict = {f"EpRet_P{i + 1}": ep_ret[i] for i in range(env.num_players)}
+            ep_ret_dict = {f"EpRet_P{i + 1}": ep_ret[i] for i in range(num_players)}
             logger.store(**ep_ret_dict, EpLen=ep_len)
-            reached = False
-            o, ep_ret, ep_len = env.reset(), np.zeros(env.num_players), 0
+            o, ep_ret, ep_len = env.reset(), np.zeros(num_players), 0
 
         # Update handling
         if t >= update_after and t % update_every == 0:
             for j in range(update_every):
-                batch_dicts = [replay_buffer[j].sample_batch(batch_size // env.num_players) for j in range(env.num_players)]
-                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(env.num_players)], axis=0) for key in batch_dicts[0].keys()}
+                batch_dicts = [replay_buffer[j].sample_batch(batch_size // num_players) for j in range(num_players)]
+                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(num_players)], axis=0) for key in batch_dicts[0].keys()}
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
@@ -357,7 +357,11 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             print(f"Best Success Rate: {int(success_rate * 100)}, Episode Return: {np.round(max_ep_ret, 2)}")
             print(f"Step Success Rate: {int(act_suc_rate * 100)}, Step Episode Return: {np.round(act_avg_ret, 2)}", end=". ")
             if ((epoch % save_freq == 0) or (epoch == epochs)) and (act_suc_rate >= success_rate):
-                logger.save_state({'env': env}, None)
+                logger.save_state({'env': env}, None, not(pkl_saved))
+                if not pkl_saved:
+                    pkl_saved = True
+                    tf.get_default_graph().finalize()
+                    g.finalize()
                 success_rate = act_suc_rate
                 max_ep_ret = act_avg_ret
                 print("Saving model ...")
@@ -366,7 +370,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             else:
                 print("")
 
-            if ((epoch % save_freq == 0) or (epoch == epochs)) and (act_suc_rate > 0.8):
+            if ((epoch % save_freq == 0) or (epoch == epochs)) and (success_rate > 0.6):
                 logger.save_state({'env': env}, t)
                 print("Saving model ...")
 
@@ -374,9 +378,11 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
             if t >= update_after:
                 logger.log_tabular('Epoch', epoch)
 
-                for i in range(env.num_players):
+                for i in range(num_players):
                     logger.log_tabular(f'EpRet_P{i + 1}', with_min_and_max=True)
-                    logger.log_tabular(f'TestEpRet_P{i + 1}', with_min_and_max=False)
+                    logger.log_tabular(f'TestEpRet_P{i + 1}', with_min_and_max=True)
+                    logger.log_tabular(f'TestEpRetSparse_P{i + 1}', with_min_and_max=True)
+                    logger.log_tabular(f'TestEpStatsVelToBall_P{i + 1}', with_min_and_max=True)
 
                 logger.log_tabular('EpLen', with_min_and_max=True)
                 logger.log_tabular('TestEpLen', with_min_and_max=True)
@@ -392,25 +398,28 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=0,
 if __name__ == '__main__':
     import argparse
     import dm_soccer2gym
+    from math import ceil
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hid', type=int, default=256)
-    parser.add_argument('--l', type=int, default=2)
     parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--epochs', type=int, default=10000)
-    parser.add_argument("--gpu", type=float, default=0.20)
+    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument("--gpu", type=float, default=1.0)
+    parser.add_argument("--reward", type=str, default="sparse")
+    parser.add_argument("--control_timestep", type=float, default=0.05)
+    parser.add_argument("--time_limit", type=float, default=30.)
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs('td3_soccer_goal_1vs1_mlp_dense', data_dir="/home/pavan/Proyecto_EL7021/models/TD3", datestamp=True)
+    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_1vs1_{args.reward}_{args.control_timestep}', data_dir="/home/amtc/pavan/rl_soccer/models/TD3/paper/1vs1", datestamp=True)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu)
 
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
     
-    td3(lambda : dm_soccer2gym.make('1vs1goal', task_kwargs={"rew_type": "simple_v2", "time_limit": 45., "disable_jump": True, 
-        "dist_thresh": 0.03, 'control_timestep': 0.1}), 
-        # actor_critic=core.mlp_actor_critic_heads,
-        ac_kwargs=dict(hidden_sizes=[args.hid]*args.l),
+    td3(lambda : dm_soccer2gym.make('1vs1goal', task_kwargs={"rew_type": args.reward, "time_limit": args.time_limit, "disable_jump": True, 
+        "dist_thresh": 0.03, 'control_timestep': args.control_timestep}), 
+        test_env_fn=lambda : dm_soccer2gym.make('1vs1goal', task_kwargs={"rew_type": "simple_v2", "time_limit": args.time_limit, "disable_jump": True, 
+        "dist_thresh": 0.03, 'control_timestep': args.control_timestep, 'random_state': 69}),
+        actor_critic=core.mlp_actor_critic_heads,
         gamma=args.gamma, epochs=args.epochs,
         logger_kwargs=logger_kwargs,
-        sess=sess, max_ep_len=450,
-        load_1vs0="/home/pavan/Proyecto_EL7021/models/TD3/2020-05-10_td3_soccer_goal_1vs0")
+        sess=sess, max_ep_len=ceil(args.time_limit / args.control_timestep),
+        load_1vs0="")
