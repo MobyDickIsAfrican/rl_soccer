@@ -40,7 +40,7 @@ class ReplayBuffer:
 
 
 def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None, 
-        steps_per_epoch=10000, epochs=10000, replay_size=int(4e6), gamma=0.99, 
+        steps_per_epoch=10000, epochs=10000, replay_size=int(5e6), gamma=0.99, 
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=10000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=1054, 
@@ -148,7 +148,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     tf.set_random_seed(seed)
     np.random.seed(seed)
 
-    env, test_env = env_fn(), test_env_fn() if test_env_fn is not None else env_fn()
+    env, test_env_fn = env_fn(), test_env_fn if test_env_fn is not None else env_fn
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
@@ -158,7 +158,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     num_players = env.num_players
-    assert num_players == test_env.num_players
+    assert num_players == test_env_fn().num_players
 
     if sess is None:
         sess = tf.Session()
@@ -255,6 +255,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     def test_agent():
         success_rate = 0
         avg_ret = np.zeros(num_players)
+        test_env = test_env_fn()
         for j in range(num_test_episodes):
             o = test_env.reset()
             d, ep_ret, ep_ret_sparse, ep_len = False, np.zeros(num_players), np.zeros(num_players), 0
@@ -370,7 +371,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             else:
                 print("")
 
-            if ((epoch % save_freq == 0) or (epoch == epochs)) and (success_rate > 0.6):
+            if ((epoch % save_freq == 0) or (epoch == epochs)) and (success_rate >= 0.6):
                 logger.save_state({'env': env}, t)
                 print("Saving model ...")
 

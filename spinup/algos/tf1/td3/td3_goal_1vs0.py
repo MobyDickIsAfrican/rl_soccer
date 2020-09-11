@@ -149,7 +149,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         tf.set_random_seed(seed)
         np.random.seed(seed)
 
-    env, test_env = env_fn(), test_env_fn() if test_env_fn is not None else env_fn()
+    env, test_env_fn = env_fn(), test_env_fn if test_env_fn is not None else env_fn
     obs_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
@@ -159,7 +159,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     # Share information about action space with policy architecture
     ac_kwargs['action_space'] = env.action_space
     num_players = env.num_players
-    assert num_players == test_env.num_players
+    assert num_players == test_env_fn().num_players
 
     if sess is None:
         sess = tf.Session()
@@ -360,7 +360,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             else:
                 print("")
 
-            if ((epoch % save_freq == 0) or (epoch == epochs) and (success_rate >= 0.8)):
+            if ((epoch % save_freq == 0) or (epoch == epochs)) and (success_rate >= 0.8):
                 logger.save_state({'env': env}, t)
                 print("Saving model ...")
 
