@@ -360,7 +360,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             else:
                 print("")
 
-            if ((epoch % save_freq == 0) or (epoch == epochs)) and (success_rate >= 0.8):
+            if ((epoch % save_freq == 0) or (epoch == epochs)) and (act_suc_rate >= 0.8):
                 logger.save_state({'env': env}, t)
                 print("Saving model ...")
 
