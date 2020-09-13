@@ -212,7 +212,7 @@ class Logger:
         self.tf_saver_elements = dict(session=sess, inputs=inputs, outputs=outputs)
         self.tf_saver_info = {'inputs': {k:v.name for k,v in inputs.items()},
                               'outputs': {k:v.name for k,v in outputs.items()}}
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(max_to_keep=None)
 
     def _tf_simple_save(self, itr=None, save_pkl=False):
         """
@@ -225,11 +225,10 @@ class Logger:
             fpath = 'tf1_save'
             fpath = osp.join(self.output_dir, fpath)
             if itr is None:
-                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'),
-                                max_to_keep=None)
+                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'))
             else:
                 self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'),
-                                global_step=itr, max_to_keep=None)
+                                global_step=itr)
             if save_pkl:
                 joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
                 joblib.dump(self.tf_saver_info, osp.join(self.output_dir, 'model_info.pkl'))
