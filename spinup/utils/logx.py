@@ -225,10 +225,11 @@ class Logger:
             fpath = 'tf1_save'
             fpath = osp.join(self.output_dir, fpath)
             if itr is None:
-                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'))
+                self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'),
+                                max_to_keep=None)
             else:
                 self.saver.save(self.tf_saver_elements['session'], os.path.join(fpath, 'saved_model'),
-                                global_step=itr)
+                                global_step=itr, max_to_keep=None)
             if save_pkl:
                 joblib.dump(self.tf_saver_info, osp.join(fpath, 'model_info.pkl'))
                 joblib.dump(self.tf_saver_info, osp.join(self.output_dir, 'model_info.pkl'))
