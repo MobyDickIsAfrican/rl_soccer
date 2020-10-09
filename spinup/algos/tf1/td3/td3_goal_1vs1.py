@@ -44,7 +44,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=10000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=1054, 
-        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", 
+        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", num='last',
         gradient_clipping=False, render=False, test_env_fn=None):
     """
     Twin Delayed Deep Deterministic Policy Gradient (TD3)
@@ -230,7 +230,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
     if aux_int:
         g = tf.Graph()
         with g.as_default():
-            __, _get_solo_action = load_policy_and_env(load_1vs0, sess=None)
+            __, _get_solo_action = load_policy_and_env(load_1vs0, num, sess=None)
             get_solo_action = lambda x: [_get_solo_action(x[:18])]
 
     # Polyak averaging for target variables
@@ -371,7 +371,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             else:
                 print("")
 
-            if ((epoch % save_freq == 0) or (epoch == epochs)) and (act_suc_rate >= 0.6):
+            if (((epoch % save_freq == 0) or (epoch == epochs)) and (act_suc_rate >= 0.7)) or (epoch % (save_freq * 10) == 0):
                 logger.save_state({'env': env}, t)
                 print("Saving model ...")
 
@@ -410,7 +410,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_1vs1_{args.reward}_{args.control_timestep}', data_dir="/home/amtc/pavan/rl_soccer/models/TD3/paper/1vs1", datestamp=True)
+    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_1vs1_{args.reward}_{args.control_timestep}', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac7488/pavan/Proyecto_EL7021/models/TD3/paper/1vs1", datestamp=True)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu)
 
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
@@ -423,4 +423,5 @@ if __name__ == '__main__':
         gamma=args.gamma, epochs=args.epochs,
         logger_kwargs=logger_kwargs,
         sess=sess, max_ep_len=ceil(args.time_limit / args.control_timestep),
-        load_1vs0="")
+        load_1vs0="/home/amtc/pavan/rl_soccer/models/TD3/paper/1vs0/2020-09-12_23-40-25_td3_soccer_goal_1vs0_simple_v2_0.05",
+        num=8299999)

@@ -89,13 +89,14 @@ def load_tf_policy(fpath, itr, deterministic=False, sess=None):
 
     fname = osp.join(fpath, 'tf1_save', 'saved_model')
     if len(itr) > 0:
-        fname += f'_{itr}'
+        fname += f'-{itr}'
     print('\n\nLoading from %s.\n\n'%fname)
 
     # load the things!
     if sess is None:
         sess = tf.Session()
     model = restore_tf_graph(sess, fname)
+    print(model.keys()) 
 
     # get the correct op for executing actions
     if deterministic and 'mu' in model.keys():
@@ -108,7 +109,6 @@ def load_tf_policy(fpath, itr, deterministic=False, sess=None):
 
     # make function for producing an action given a single state
     get_action = lambda x : sess.run(action_op, feed_dict={model['x']: x[None,:]})[0]
-    print(model['x'].shape)
 
     return get_action
 
