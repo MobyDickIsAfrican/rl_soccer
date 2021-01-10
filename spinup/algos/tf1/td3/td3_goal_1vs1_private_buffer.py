@@ -44,7 +44,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=10000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=1054, 
-        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", num=0,
+        logger_kwargs=dict(), save_freq=1, sess=None, load_1vs0="", num='last',
         gradient_clipping=False, render=False, test_env_fn=None):
     """
     Twin Delayed Deep Deterministic Policy Gradient (TD3)
@@ -226,8 +226,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         train_q_op = q_optimizer.minimize(q_loss, var_list=(get_vars('main/q')))
 
     sess.run(tf.global_variables_initializer())
-    
-    g = None
+
     if aux_int:
         g = tf.Graph()
         with g.as_default():
@@ -363,7 +362,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
                 if not pkl_saved:
                     pkl_saved = True
                     tf.get_default_graph().finalize()
-                    if g is not None: g.finalize()
+                    g.finalize()
                 success_rate = act_suc_rate
                 max_ep_ret = act_avg_ret
                 print("Saving model ...")
