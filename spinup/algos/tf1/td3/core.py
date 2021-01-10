@@ -45,31 +45,92 @@ def mlp_actor_critic(x, a, hidden_sizes=(300,400), activation=tf.nn.relu,
 
 def mlp_actor_critic_heads(x, a, hidden_sizes={"head":(32, 64), "concat":(256, 256)}, activation=tf.nn.leaky_relu, 
                      output_activation=tf.tanh, action_space=None):
+                     
     act_dim = a.shape.as_list()[-1]
     x_dim = x.shape.as_list()[-1]
+    
     assert x_dim >= 18
     assert (x_dim - 18) % 6 == 0
+    
     num_other_players = (x_dim - 18) // 6
     act_limit = action_space.high[0]
+    
     with tf.variable_scope('pi'):
         heads_own  = [mlp(x[:, 2 * i:2 * (i + 1)], list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(x[:, 18 + 6 * i:18 + 6 * (i + 1)], list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]
         joint_head = mlp(tf.concat(heads_own + heads_other, axis=-1), list(hidden_sizes["concat"]), activation, activation)
         pi = act_limit * mlp(joint_head, [act_dim], activation, output_activation, last_layer_init=u_initializer)
+        
     with tf.variable_scope('q1'):
         heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(tf.concat([x[:, 18 + 6 * i:18 + 6 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]
         q1 = tf.squeeze(mlp(tf.concat(heads_own + heads_other, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
     with tf.variable_scope('q2'):
         heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(tf.concat([x[:, 18 + 6 * i:18 + 6 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]
         q2 = tf.squeeze(mlp(tf.concat(heads_own + heads_other, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
     with tf.variable_scope('q1', reuse=True):
         heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], pi], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
         heads_other = [mlp(tf.concat([x[:, 18 + 6 * i:18 + 6 * (i + 1)], pi], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(num_other_players)]
         q1_pi = tf.squeeze(mlp(tf.concat(heads_own + heads_other, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
     return pi, q1, q2, q1_pi
 
+
+def mlp_actor_critic_heads_v2(x, a, hidden_sizes={"head":(32, 64), "concat":(256, 256)}, activation=tf.nn.leaky_relu, 
+                     output_activation=tf.tanh, action_space=None, num_teammates=1):
+                     
+    act_dim = a.shape.as_list()[-1]
+    x_dim = x.shape.as_list()[-1]
+    
+    assert x_dim >= 18
+    assert (x_dim - 18) % 6 == 0
+    
+    num_other_players = (x_dim - 18) // 6
+    assert num_teammates <= num_other_players
+    num_opponents = num_other_players - num_teammates
+    act_limit = action_space.high[0]
+    
+    with tf.variable_scope('pi'):
+        heads_own  = [mlp(x[:, 2 * i:2 * (i + 1)], list(hidden_sizes["head"]), activation, activation) for i in range(9)]
+        heads_op = mlp(tf.reshape(x[:, 18:18 + 6 * num_opponents], [-1, 6]), list(hidden_sizes["head"]), activation, activation)
+        heads_op = tf.reshape(heads_op, [-1, num_opponents, hidden_sizes["head"][-1]])
+        heads_op = [tf.reduce_min(heads_op, axis=1), tf.reduce_max(heads_op, axis=1)]
+        heads_tm = [mlp(x[:, 18 + 6 * (i + num_opponents):18 + 6 * (num_opponents + i + 1)], list(hidden_sizes["head"]), activation, activation) \
+            for i in range(num_teammates)]
+        joint_head = mlp(tf.concat(heads_own + heads_op + heads_tm, axis=-1), list(hidden_sizes["concat"]), activation, activation)
+        pi = act_limit * mlp(joint_head, [act_dim], activation, output_activation, last_layer_init=u_initializer)
+        
+    with tf.variable_scope('q1'):
+        heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
+        heads_op = mlp(tf.reshape(x[:, 18:18 + 6 * num_opponents], [-1, 6]), list(hidden_sizes["head"]), activation, activation)
+        heads_op = tf.reshape(heads_op, [-1, num_opponents, hidden_sizes["head"][-1]])
+        heads_op = [tf.reduce_min(heads_op, axis=1), tf.reduce_max(heads_op, axis=1)]
+        heads_tm = [mlp(x[:, 18 + 6 * (i + num_opponents):18 + 6 * (num_opponents + i + 1)], list(hidden_sizes["head"]), activation, activation) \
+            for i in range(num_teammates)]
+        q1 = tf.squeeze(mlp(tf.concat(heads_own + heads_op + heads_tm, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
+    with tf.variable_scope('q2'):
+        heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], a], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
+        heads_op = mlp(tf.reshape(x[:, 18:18 + 6 * num_opponents], [-1, 6]), list(hidden_sizes["head"]), activation, activation)
+        heads_op = tf.reshape(heads_op, [-1, num_opponents, hidden_sizes["head"][-1]])
+        heads_op = [tf.reduce_min(heads_op, axis=1), tf.reduce_max(heads_op, axis=1)]
+        heads_tm = [mlp(x[:, 18 + 6 * (i + num_opponents):18 + 6 * (num_opponents + i + 1)], list(hidden_sizes["head"]), activation, activation) \
+            for i in range(num_teammates)]
+        q2 = tf.squeeze(mlp(tf.concat(heads_own + heads_op + heads_tm, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
+    with tf.variable_scope('q1', reuse=True):
+        heads_own  = [mlp(tf.concat([x[:, 2 * i:2 * (i + 1)], pi], axis=-1), list(hidden_sizes["head"]), activation, activation) for i in range(9)]
+        heads_op = mlp(tf.reshape(x[:, 18:18 + 6 * num_opponents], [-1, 6]), list(hidden_sizes["head"]), activation, activation)
+        heads_op = tf.reshape(heads_op, [-1, num_opponents, hidden_sizes["head"][-1]])
+        heads_op = [tf.reduce_min(heads_op, axis=1), tf.reduce_max(heads_op, axis=1)]
+        heads_tm = [mlp(x[:, 18 + 6 * (i + num_opponents):18 + 6 * (num_opponents + i + 1)], list(hidden_sizes["head"]), activation, activation) \
+            for i in range(num_teammates)]
+        q1_pi = tf.squeeze(mlp(tf.concat(heads_own + heads_op + heads_tm, axis=-1), list(hidden_sizes["concat"])+[1], activation, None), axis=1)
+        
+    return pi, q1, q2, q1_pi
 
 """
 def mlp_actor_critic_reach_res_heads(x, a, hidden_sizes={"head":(32, 64), "pooled":(256, 256), "reach":(256, 256)}, activation=tf.nn.leaky_relu, 

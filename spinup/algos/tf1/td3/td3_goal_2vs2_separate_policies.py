@@ -627,7 +627,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs2_sep_policy_{args.reward}_{args.control_timestep}', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac7488/pavan/Proyecto_EL7021/models/TD3/paper/2vs2_srb", datestamp=True)
+    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs2_sep_policy_{args.reward}_{args.control_timestep}', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac7488/pavan/Proyecto_EL7021/models/TD3/paper/2vs2_srb_v2", datestamp=True)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu)
 
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
@@ -636,7 +636,7 @@ if __name__ == '__main__':
         "dist_thresh": 0.03, 'control_timestep': args.control_timestep}), 
         test_env_fn=lambda : dm_soccer2gym.make('2vs2goal', task_kwargs={"rew_type": "simple_v2", "time_limit": args.time_limit, "disable_jump": True, 
         "dist_thresh": 0.03, 'control_timestep': args.control_timestep, 'random_state': 69, 'observables': 'all'}),
-        actor_critic=core.mlp_actor_critic_heads,
+        actor_critic=core.mlp_actor_critic_heads_v2,
         gamma=args.gamma, epochs=args.epochs,
         logger_kwargs=logger_kwargs,
         sess=sess, max_ep_len=ceil(args.time_limit / args.control_timestep),

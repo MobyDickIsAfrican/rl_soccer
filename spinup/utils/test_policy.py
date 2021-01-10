@@ -8,7 +8,7 @@ from spinup import EpochLogger
 from spinup.utils.logx import restore_tf_graph
 
 
-def load_policy_and_env(fpath, itr='last', deterministic=False, sess=None):
+def load_policy_and_env(fpath, itr='last', deterministic=False, sess=None, two_p=False):
     """
     Load a policy from save, whether it's TF or PyTorch, along with RL env.
 
@@ -53,7 +53,7 @@ def load_policy_and_env(fpath, itr='last', deterministic=False, sess=None):
 
     # load the get_action function
     if backend == 'tf1':
-        get_action = load_tf_policy(fpath, itr, deterministic, sess)
+        get_action = load_tf_policy(fpath, itr, deterministic, sess, two_p)
     else:
         get_action = load_pytorch_policy(fpath, itr, deterministic)
 
@@ -84,7 +84,7 @@ def load_tf_model(fpath, sess, itr=""):
 '''
 
 
-def load_tf_policy(fpath, itr, deterministic=False, sess=None):
+def load_tf_policy(fpath, itr, deterministic=False, sess=None, two_p=False):
     """ Load a tensorflow policy saved with Spinning Up Logger."""
 
     fname = osp.join(fpath, 'tf1_save', 'saved_model')
@@ -102,13 +102,22 @@ def load_tf_policy(fpath, itr, deterministic=False, sess=None):
     if deterministic and 'mu' in model.keys():
         # 'deterministic' is only a valid option for SAC policies
         print('Using deterministic action op.')
-        action_op = model['mu']
+        if not two_p:
+            action_op = model['mu']
     else:
         print('Using default action op.')
-        action_op = model['pi']
+        if not two_p:
+            action_op = model['pi']
+        else:
+            action_op_1 = model['pi_1']
+            action_op_2 = model['pi_2']
 
     # make function for producing an action given a single state
-    get_action = lambda x : sess.run(action_op, feed_dict={model['x']: x[None,:]})[0]
+    if not two_p:
+        get_action = lambda x : sess.run(action_op, feed_dict={model['x']: x[None,:]})[0]
+    else:
+        get_action = lambda x, y : [sess.run(action_op_1, feed_dict={model['x']: x[None,:]})[0],
+            sess.run(action_op_2, feed_dict={model['x']: y[None,:]})[0]]
 
     return get_action
 
@@ -175,3 +184,4 @@ if __name__ == '__main__':
                                           args.itr if args.itr >=0 else 'last',
                                           args.deterministic)
     run_policy(env, get_action, args.len, args.episodes, not(args.norender))
+
