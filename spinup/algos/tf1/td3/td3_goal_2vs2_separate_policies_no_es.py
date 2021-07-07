@@ -204,7 +204,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
             
 
     # Experience buffer
-    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // env.num_players) for i in range(env.num_players)}
+    replay_buffer = {i: ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size // env.num_players) for i in range(2, env.num_players)}
 
     # Count variables
     var_counts = tuple(2 * core.count_vars(scope) for scope in ['main/player_1/pi', 'main/player_1/q1', 
@@ -472,14 +472,7 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         d = False if ep_len==max_ep_len else d
 
         # Store experience to replay buffer
-        if aux_int:
-            if not switch:
-                [replay_buffer[j].store(o[j], a[j], r[j], o2[j], d) for j in range(env.num_players)]
-            else:
-                [replay_buffer[aux_int - j - 1].store(o[j], a[j], r[j], o2[j], d) for j in range(aux_int)]
-                [replay_buffer[j].store(o[j], a[j], r[j], o2[j], d) for j in range(aux_int, num_players)]
-        else:
-            [replay_buffer[j].store(o[j], a[j], r[j], o2[j], d) for j in range(env.num_players)]
+        [replay_buffer[j].store(o[j], a[j], r[j], o2[j], d) for j in range(2, env.num_players)]
 
         # Super critical, easy to overlook step: make sure to update 
         # most recent observation!
@@ -496,13 +489,10 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
         if t >= update_after and t % update_every == 0:
             for j in range(update_every):
                 
-                if aux_int:
-                    player_idx = [0, 1, 2]
-                else:
-                    player_idx = [0, 2]
+                player_idx = [2]
                     
                 batch_dicts = [replay_buffer[j].sample_batch(batch_size // len(player_idx)) for j in player_idx]
-                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(len(player_idx))], axis=0) for key in batch_dicts[0].keys()}
+                batch = batch_dicts[0]
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
@@ -516,13 +506,10 @@ def td3(env_fn, actor_critic=core.mlp_actor_critic, ac_kwargs=dict(), seed=None,
                     # Delayed policy update
                     outs_pi_1 = sess.run([pi_loss_1, train_pi_op_1, target_update_1], feed_dict)
                     
-                if aux_int:
-                    player_idx = [0, 1, 3]
-                else:
-                    player_idx = [1, 3]
+                player_idx = [3]
                     
                 batch_dicts = [replay_buffer[j].sample_batch(batch_size // len(player_idx)) for j in player_idx]
-                batch = {key: np.concatenate([batch_dicts[i][key] for i in range(len(player_idx))], axis=0) for key in batch_dicts[0].keys()}
+                batch = batch_dicts[0]
                 feed_dict = {x_ph: batch['obs1'],
                              x2_ph: batch['obs2'],
                              a_ph: batch['acts'],
@@ -616,7 +603,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs2_sep_policy_{args.reward}_{args.control_timestep}', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac74881/pavan/Proyecto_EL7021/models/TD3/paper/2vs2_srb_v2", datestamp=True)
+    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs2_sep_policy_no_es_{args.reward}_{args.control_timestep}', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac74881/pavan/Proyecto_EL7021/models/TD3/paper/2vs2_srb_v2", datestamp=True)
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu)
 
     sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
