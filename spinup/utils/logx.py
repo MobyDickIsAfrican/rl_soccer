@@ -60,12 +60,27 @@ def restore_tf_graph(sess, fpath):
     
     saver.restore(sess, fpath)
     
-    model_info = joblib.load(osp.join(osp.split(osp.abspath(fpath))[0], 'model_info.pkl'))
     graph = tf.get_default_graph()
     model = dict()
+    model_info = joblib.load(osp.join(osp.split(osp.abspath(fpath))[0], 'model_info.pkl'))
     model.update({k: graph.get_tensor_by_name(v) for k,v in model_info['inputs'].items()})
     model.update({k: graph.get_tensor_by_name(v) for k,v in model_info['outputs'].items()})
     return model
+
+def restore_var_weights(sess, fpath):
+    """
+    Loads saved weights.
+
+    Args:
+        sess: A Tensorflow session.
+        fpath: Filepath to save directory.
+
+    Returns:
+        None
+    """
+
+    saver = tf.train.Saver()
+    saver.restore(sess, fpath)
 
 class Logger:
     """
