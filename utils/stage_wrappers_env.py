@@ -10,7 +10,6 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		self.current_team_with_ball = None
 		self.old_ball_teammate_dist = []
 
-	@overrides
 	def set_vals(self):
 		super().set_vals()
 		self.got_kickable_rew = False
@@ -49,7 +48,6 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		'''
 		return self.get_ball().last_hit()
 
-	@overrides
 	def calculate_rewards(self):
 		# we get the observation: 
 		obs = self.timestep.observation
