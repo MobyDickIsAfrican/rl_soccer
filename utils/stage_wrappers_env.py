@@ -1,25 +1,70 @@
 import dm_soccer2gym.wrapper as wrap
-from dm_soccer2gym.wrapper import polar_mod, polar_ang, convertObservation, sqrt_2, sigmoid
+from dm_soccer2gym.wrapper import polar_mod, polar_ang, sqrt_2, sigmoid
 from collections import OrderedDict 
 import numpy as np
+
+def convertObservation(spec_obs):
+	if not isinstance(spec_obs, list):
+		if len(spec_obs.keys()) == 1:
+			# no concatenation
+			return list(spec_obs.values())[0]
+		else:
+			# concatentation
+			numdim = sum([np.int(np.prod(spec_obs[key].shape)) for key in spec_obs])
+			space_obs = np.zeros((numdim,))
+			i = 0
+			for key in spec_obs:
+				space_obs[i:i+np.int(np.prod(spec_obs[key].shape))] = spec_obs[key].ravel()
+				i += int(np.prod(spec_obs[key].shape))
+			return space_obs
+	else:
+		return [convertObservation(x) for x in spec_obs]
 
 class stage_soccerTraining(wrap.DmGoalWrapper):
 	def __init__(self, team_1, team_2,task_kwargs={}, render_mode_list=None):
 		super().__init__(team_1, team_2, task_kwargs, render_mode_list)
 		# we define the rew_type for this particular stage 2 vs 0
-		self.got_kickable_rew = 0
+		
 		self.current_team_with_ball = None
-		self.old_ball_teammate_dist = []
+		
 
 	def set_vals(self):
-		super().set_vals()
-		self.got_kickable_rew = False
+			obs = self.timestep.observation
+			fl = self.timestep.observation[0]["field_front_left"][:, :2]
+			br = self.timestep.observation[0]["field_back_right"][:, :2]
+
+			self.max_dist = polar_mod(fl - br)
+
+			self.got_kickable_rew = np.array([False for _ in range(self.num_players)])
+			self.old_ball_dist = []
+			self.old_ball_op_dist = []
+			self.old_ball_team_dist = []
+			self.old_ball_teammate_dist = []
+
+			for i in range(self.num_players):
+				ball_pos = -obs[i]['ball_ego_position'][:, :2]
+				op_goal_pos = -obs[i]["opponent_goal_mid"][:, :2]
+				tm_goal_pos = -obs[i]["team_goal_mid"][:, :2]
+				ball_teammate_vec = -ball_pos - obs[i]["teammate_0_ego_position"][:,:2]
+
+				ball_op_goal_pos = -ball_pos + op_goal_pos
+				ball_team_goal_pos = -ball_pos + tm_goal_pos
+				self.old_ball_dist.append(polar_mod(ball_pos) / self.max_dist)
+				self.old_ball_op_dist.append(polar_mod(ball_op_goal_pos) / self.max_dist)
+				self.old_ball_team_dist.append(polar_mod(ball_team_goal_pos) / self.max_dist)
+				self.old_ball_teammate_dist.append(polar_mod(ball_teammate_vec)/self.max_dist)
+
+			self.old_ball_dist = np.array(self.old_ball_dist)
+			self.old_ball_op_goal_dist = np.array(self.old_ball_op_dist)
+			self.old_ball_team_goal_dist = np.array(self.old_ball_team_dist)
+			self.old_ball_teammate_dist = np.array(self.old_ball_teammate_dist)
+			self.got_kickable_rew = np.any(ball_pos<self.dist_thresh)
 		
 	def get_ball(self):
 		'''
 		This methods is created to get the ball from the environment, the ball 
 		lets us know if the ball has been obtained by the same or different team. 
-		Return: bool
+		Return: ball object 
 		'''
 		return self.dmcenv.ball
 
@@ -116,8 +161,8 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 					cut_obs[-1][f"teammate_{player}_ball_angle_scaled"] = np.array([(polar_ang(teammate_ball_pos) / (2 * np.pi))])
 
 				ctr += 1
-
-			return np.clip(convertObservation(cut_obs), -1, 1)
+			cutted_obs = convertObservation(cut_obs)
+			return np.clip(cutted_obs, -1, 1)
 
 	def calculate_rewards(self):
 		# we get the observation: 
@@ -131,7 +176,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		ball_team_goal_pos = [-ball_pos[i] - obs[i]["team_goal_mid"][:, :2] 
 											for i in range(self.num_players)]
 		# we get the teammate position with respect to the ball: 
-		ball_teammate_pos = [-ball_pos[i] - obs[i]["teammate_0_ego_position"]
+		ball_teammate_pos = [-ball_pos[i] - obs[i]["teammate_0_ego_position"][:,:2]
 										for i in range(self.num_players)]
 		
 		
@@ -164,7 +209,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 						- (self.old_ball_team_goal_dist - ball_team_goal_dist))
 			delta_ball_d = ball_dist - self.old_ball_dist
 			delta_teammate_ball_d = ball_teammate_dist - self.old_ball_teammate_dist 
-			delta_ball_op_goal_dist = ball_op_goal_dist - self.old_ball_goal_dist
+			delta_ball_op_goal_dist = ball_op_goal_dist - self.old_ball_op_goal_dist
 			
 			kickable_reward = beta
 			still_is_kickable_reward = 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d) -0.1
