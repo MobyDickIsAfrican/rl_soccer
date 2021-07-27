@@ -401,8 +401,8 @@ class TD3_team_alg:
                 
 class soccer2vs0(TD3_team_alg):
     def __init__(self, env_fn, home_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
-        polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
+        steps_per_epoch=10000, epochs=2000, replay_size=int(1e6), gamma=0.99, 
+        polyak=0.005, pi_lr=1e-3, q_lr=1e-3, batch_size=128, start_steps=10000, 
         update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
         logger_kwargs=dict(), save_freq=1) -> None:
