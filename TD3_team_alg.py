@@ -500,7 +500,6 @@ class soccer2vs0(TD3_team_alg):
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
 
         for t in range(total_steps):
-            print(t)
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
