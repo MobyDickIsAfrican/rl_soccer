@@ -227,7 +227,10 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 
 		return rewards.tolist()
 
-	
+
+
+
+
 
 
 
