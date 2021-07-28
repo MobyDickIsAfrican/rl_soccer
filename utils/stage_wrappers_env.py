@@ -197,7 +197,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1) / 10
-		beta = alpha/10
+		beta = alpha/5
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 

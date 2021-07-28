@@ -65,7 +65,7 @@ class MLPActor(nn.Module):
         super().__init__()
         pi_sizes = [obs_dim] + list(hidden_sizes) + [act_dim]
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
-        self.act_limit = act_limit
+        self.act_limit = torch.Tensor(np.array(act_limit)).cpu()
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
@@ -112,7 +112,8 @@ class MLPAC_4_team(nn.Module):
                 return torch.cat([self.pi[i](obs)[np.newaxis, :] for i in range(len(self.pi))], axis=0)
 
     def compute_q_loss(self, data, ac_targ):
-        o, a, r, o2, d = data['obs'], data['act'], data['rew'], data['obs2'], data['done']
+        o, a, r, o2, d = torch.Tensor(data['obs']).cuda(), torch.Tensor(data['act']).cuda(), torch.Tensor(np.array(data['rew'])).cuda(),\
+                         torch.Tensor(data['obs2']).cuda(), torch.Tensor(data['done']).cuda()
 
         q1 = self.q1(o,a)
         q2 = self.q2(o,a)
@@ -146,14 +147,14 @@ class MLPAC_4_team(nn.Module):
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
-        loss_info = dict(Q1Vals=q1.detach().numpy(),
-                         Q2Vals=q2.detach().numpy())
+        loss_info = dict(Q1Vals=q1.detach().cpu().numpy(),
+                         Q2Vals=q2.detach().cpu().numpy())
 
         return loss_q, loss_info
 
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
-        o = [data_i['obs'] for data_i in data]
+        o = [torch.Tensor(data_i['obs']).cuda() for data_i in data]
         q1_pi = [self.q1(o[i], self.pi[i](o[i])) for i in range(len(self.pi))]
         return torch.sum(torch.cat([-q1_i.mean()[np.newaxis] for q1_i in q1_pi]))
 
@@ -264,6 +265,7 @@ class TD3_team_alg:
         # create actor critic agent for home team
         polyak = self.training_param_dict['polyak']
         ac = actor_critic(home_or_away, n_players, self.env.observation_space, self.env.action_space, self.loss_param_dict, polyak, **ac_kwargs)
+        ac = ac.cuda()
         ac_targ = deepcopy(ac)
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
         for p in ac_targ.parameters():
@@ -445,7 +447,8 @@ class soccer2vs0(TD3_team_alg):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
         self.home_ac, self.home_ac_targ, self.home_q_params, self.home_team_buffer, self.home_critic_buffer\
-                    , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs)  
+                    , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs) 
+
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
         var_counts = list(count_vars(module) for module in [*self.home_ac.pi, self.home_ac.q1, self.home_ac.q2])
@@ -471,7 +474,7 @@ class soccer2vs0(TD3_team_alg):
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         critic_using = not (o.shape[0] == self.training_param_dict["batch_size"])
-        actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32), critic_using).numpy()
+        actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda(), critic_using).cpu().numpy()
         actions += noise_scale*np.random.randn(self.act_dim)
         return np.clip(actions, -act_lim, act_lim)
 
