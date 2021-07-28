@@ -347,6 +347,167 @@ def td3(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             logger.log_tabular('Time', time.time()-start_time)
             logger.dump_tabular()
 
+
+
+def td3_soccer_game(env_fn, home_players, away_players, actor_critic=core.MLPAC_4_team, ac_kwargs=dict(), seed=0, 
+        steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
+        polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=100, start_steps=10000, 
+        update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
+        noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
+        logger_kwargs=dict(), save_freq=1):
+
+    logger = EpochLogger(**logger_kwargs)
+    logger.save_config(locals())
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    env, test_env = env_fn(), env_fn()
+    obs_dim = env.observation_space.shape
+    act_dim = env.action_space.shape[0]
+
+    # Action limit for clamping: critically, assumes all dimensions share the same bound!
+    act_limit = env.action_space.high[0]
+
+    # Create actor-critic module and target networks for each team:
+    # create actor critic agent for home team
+    home_ac = actor_critic(home_players, env.observation_space, env.action_space, **ac_kwargs)
+    home_ac_targ = deepcopy(home_ac)
+    # Freeze target networks with respect to optimizers (only update via polyak averaging)
+    for p in home_ac_targ.parameters():
+        p.requires_grad = False
+
+    # List of parameters for both Q-networks (save this for convenience)
+    home_q_params = itertools.chain(home_ac.q1.parameters(), home_ac.q2.parameters())
+
+    # Experience buffer:
+    home_team_buffer = [ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)\
+                         for _ in range(home_players)]
+    home_critic_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
+
+    # Count variables (protip: try to get a feel for how different size networks behave!)
+    var_counts = list(core.count_vars(module) for module in [*home_ac.pi, home_ac.q1, home_ac.q2])
+    logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
+    
+
+    #################### AWAY TEAM ######################################################
+
+    # create actor-critic agente for away team:
+    away_ac = actor_critic(away_players, env.observation_space, env.action_space, **ac_kwargs)
+    away_ac_targ = deepcopy(away_ac)
+
+    for p in away_ac_targ.parameters():
+        p.requires_grad = False
+
+    away_q_params = itertools.chain(away_ac.q1.parameters(), away_ac.q2.parameters())
+
+    # Experience buffer:
+    away_team_buffer = [ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)\
+                                    for _ in range(away_players)]
+    away_critic_buffer = ReplayBuffer(obs_dim=obs_dim, act_dim=act_dim, size=replay_size)
+
+    # Count variables (protip: try to get a feel for how different size networks behave!)
+    var_counts = list(core.count_vars(module) for module in [*away_ac.pi, away_ac.q1, away_ac.q2])
+    logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
+
+    # Set up function for computing TD3 Q-losses
+    def compute_loss_q(ac, ac_targ, data):
+        o, a, r, o2, d = data['obs'], data['act'], data['rew'], data['obs2'], data['done']
+
+        q1 = ac.q1(o,a)
+        q2 = ac.q2(o,a)
+
+        # Bellman backup for Q functions
+        with torch.no_grad():
+            pi_targ = ac_targ.pi(o2)
+
+            # Target policy smoothing
+            epsilon = torch.randn_like(pi_targ) * target_noise
+            epsilon = torch.clamp(epsilon, -noise_clip, noise_clip)
+            a2 = pi_targ + epsilon
+            a2 = torch.clamp(a2, -act_limit, act_limit)
+
+            # Target Q-values
+            q1_pi_targ = ac_targ.q1(o2, a2)
+            q2_pi_targ = ac_targ.q2(o2, a2)
+            q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
+            backup = r + gamma * (1 - d) * q_pi_targ
+
+        # MSE loss against Bellman backup
+        loss_q1 = ((q1 - backup)**2).mean()
+        loss_q2 = ((q2 - backup)**2).mean()
+        loss_q = loss_q1 + loss_q2
+
+        # Useful info for logging
+        loss_info = dict(Q1Vals=q1.detach().numpy(),
+                         Q2Vals=q2.detach().numpy())
+
+        return loss_q, loss_info
+
+    # Set up function for computing TD3 pi loss
+    def compute_loss_pi(actor, data):
+        o = data['obs']
+        q1_pi = [ac.q1(o, ac.pi(o)) for ac in actor]
+        return [-q1_i.mean() for q1_i in q1_pi]
+
+    # Set up optimizers for policy and q-function for the home team
+    pi_optimizer = Adam(home_ac.pi.parameters(), lr=pi_lr)
+    q_optimizer = Adam(home_q_params, lr=q_lr)
+
+    # Set up optimizers for policy and q-function for the away team:
+    pi_optimizer = Adam(away_ac.pi.parameters(), lr=pi_lr)
+    q_optimizer = Adam(away_q_params, lr=q_lr)
+
+    
+    # Set up model saving
+    logger.setup_pytorch_saver([home_ac, away_ac])
+
+
+    def update(data, timer, ac, q_params, ac_targ):
+        # in order to update the correct actor we need to give the actor to the algorithm and 
+        # also the q_params of away and home teams.
+        # First run one gradient descent step for Q1 and Q2
+        q_optimizer.zero_grad()
+        loss_q, loss_info = compute_loss_q(data)
+        loss_q.backward()
+        q_optimizer.step()
+
+        # Record things
+        logger.store(LossQ=loss_q.item(), **loss_info)
+
+        # Possibly update pi and target networks
+        if timer % policy_delay == 0:
+
+            # Freeze Q-networks so you don't waste computational effort 
+            # computing gradients for them during the policy learning step.
+            for p in q_params:
+                p.requires_grad = False
+
+            # Next run one gradient descent step for pi.
+            pi_optimizer.zero_grad()
+            loss_pi = compute_loss_pi(data)
+            loss_pi.backward()
+            pi_optimizer.step()
+
+            # Unfreeze Q-networks so you can optimize it at next DDPG step.
+            for p in q_params:
+                p.requires_grad = True
+
+            # Record things
+            logger.store(LossPi=loss_pi.item())
+
+            # Finally, update target networks by polyak averaging.
+            with torch.no_grad():
+                for p, p_targ in zip(ac.parameters(), ac_targ.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(polyak)
+                    p_targ.data.add_((1 - polyak) * p.data)
+
+    
+    
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
