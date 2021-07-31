@@ -551,7 +551,7 @@ class soccer2vs0(TD3_team_alg):
                 succes_rate = self.test_agent()
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
-                self.logger.log_tabular('Epoch', succes_rate)
+                self.logger.log_tabular('Success rate', succes_rate)
                 self.logger.log_tabular('EpRet', with_min_and_max=True)
                 self.logger.log_tabular('TestEpRet', with_min_and_max=True)
                 self.logger.log_tabular('EpLen', average_only=True)
