@@ -509,7 +509,7 @@ class soccer2vs0(TD3_team_alg):
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
             if t > start_steps:
-                a = self.get_action(o, self.act_noise)
+                a = self.get_action(o[np.newaxis, :], self.act_noise)
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home)]
 
