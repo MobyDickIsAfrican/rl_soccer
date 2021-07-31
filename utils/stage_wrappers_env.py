@@ -209,7 +209,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 						- (self.old_ball_team_goal_dist - ball_team_goal_dist))
 			delta_ball_d = ball_dist - self.old_ball_dist
 			delta_teammate_ball_d = ball_teammate_dist - self.old_ball_teammate_dist 
-			delta_ball_op_goal_dist = ball_op_goal_dist #- self.old_ball_op_goal_dist
+			delta_ball_op_goal_dist = ball_op_goal_dist - self.old_ball_op_goal_dist
 			
 			kickable_reward = beta
 			still_is_kickable_reward = beta/10 + 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
@@ -218,6 +218,9 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			rewards += kickable_now_first*kickable_reward \
 						+ (1- self.got_kickable_rew)*kickable*still_is_kickable_reward \
 						+ (1-kickable)*other_scenario_reward
+		
+		else: 
+			rewards *= alpha
 
 		self.old_ball_dist = ball_dist
 		self.old_ball_op_dist = ball_op_goal_dist
