@@ -492,7 +492,7 @@ class soccer2vs0(TD3_team_alg):
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(actions.shape[0])])
                 ep_ret += r
                 ep_len += 1
-            if (ep_len < max_ep_len or r >20):
+            if (ep_len < max_ep_len or r[0] >20):
                 succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
