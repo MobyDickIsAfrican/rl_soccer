@@ -1,3 +1,4 @@
+from dm_control.composer.define import observable
 from spinup.algos.pytorch.td3.td3 import td3_soccer_game
 from utils.stage_wrappers_env import stage_soccerTraining 
 from numpy.lib.npyio import save
@@ -21,11 +22,11 @@ class ReplayBuffer:
     A simple FIFO experience replay buffer for TD3 agents.
     """
 
-    def __init__(self, obs_dim, act_dim, size):
+    def __init__(self, obs_dim, act_dim, size, rew_dim):
         self.obs_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
-        self.obs2_buf = np.zeros(combined_shape(size, obs_dim), dtype=np.float32)
+        self.obs2_buf = np.zeros(combined_shape(size,  obs_dim), dtype=np.float32)
         self.act_buf = np.zeros(combined_shape(size, act_dim), dtype=np.float32)
-        self.rew_buf = np.zeros(size, dtype=np.float32)
+        self.rew_buf = np.zeros(combined_shape(size, rew_dim), dtype=np.float32)
         self.done_buf = np.zeros(size, dtype=np.float32)
         self.ptr, self.size, self.max_size = 0, 0, size
 
@@ -78,6 +79,8 @@ class MLPQFunction(nn.Module):
         self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [1], activation)
 
     def forward(self, obs, act):
+        obs = torch.flatten(obs, 1, -1)
+        act = torch.flatten(act, 1, -1)
         q = self.q(torch.cat([obs, act], dim=-1))
         return torch.squeeze(q, -1) # Critical to ensure q has right shape.
 
@@ -101,15 +104,14 @@ class MLPAC_4_team(nn.Module):
                                                          for _ in range(players)])
         
         # build critic: 
-        self.q1 = MLPQFunction(obs_dim, act_dim, hidden_sizes, activation)
-        self.q2 = MLPQFunction(obs_dim, act_dim, hidden_sizes, activation)
+        critic_obs_dim = players*obs_dim
+        critic_action_dim = players*act_dim
+        self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation)
+        self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation)
 
-    def act(self, obs, critic_using=False):
+    def act(self, obs):
         with torch.no_grad():
-            if critic_using:
-                return torch.cat([self.pi[i](obs[i])[np.newaxis, :] for i in range(len(self.pi))], axis=0)
-            else:
-                return torch.cat([self.pi[i](obs)[np.newaxis, :] for i in range(len(self.pi))], axis=0)
+                return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :]),1) for i in range(len(self.pi))], axis=1)
 
     def compute_q_loss(self, data, ac_targ):
         o, a, r, o2, d = torch.Tensor(data['obs']).cuda(), torch.Tensor(data['act']).cuda(), torch.Tensor(np.array(data['rew'])).cuda(),\
@@ -136,10 +138,10 @@ class MLPAC_4_team(nn.Module):
             a2 = torch.clamp(a2, -act_limit, act_limit)
 
             # Target Q-values
-            q1_pi_targ = torch.cat([ac_targ.q1(o2, a2[i])[np.newaxis, :] for i in range(a2.shape[0])])
-            q2_pi_targ = torch.cat([ac_targ.q2(o2, a2[i])[np.newaxis, :] for i in range(a2.shape[0])])
+            q1_pi_targ = ac_targ.q1(o2, a2)
+            q2_pi_targ = ac_targ.q2(o2, a2)
             q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
-            backup = r + gamma * (1 - d) * q_pi_targ
+            backup = r[:,0] + (gamma * (1 - d) * q_pi_targ)
 
         # MSE loss against Bellman backup
         loss_q1 = ((q1 - backup)**2).mean()
@@ -154,14 +156,14 @@ class MLPAC_4_team(nn.Module):
 
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
-        o = [torch.Tensor(data_i['obs']).cuda() for data_i in data]
-        q1_pi = [self.q1(o[i], self.pi[i](o[i])) for i in range(len(self.pi))]
-        return torch.sum(torch.cat([-q1_i.mean()[np.newaxis] for q1_i in q1_pi]))
+        o = [torch.Tensor(data["obs"][:,i,:]).cuda() for i in range(data["obs"].shape[1])]
+        q1_pi = self.q1(data["obs"].cuda(), torch.cat([torch.unsqueeze(self.pi[i](o[i]), 1) for i in range(len(self.pi))],1))
+        return -q1_pi.mean()[np.newaxis]
 
     # update method for the networks: 
-    def update(self, team_buffer, critic_buffer, q_optim, pi_optim, ac_targ, timer, logger, q_param, policy_delay):
+    def update(self, buffer, q_optim, pi_optim, ac_targ, timer, logger, q_param, policy_delay):
         q_optim.zero_grad()
-        loss_q, loss_info = self.compute_q_loss(critic_buffer, ac_targ)
+        loss_q, loss_info = self.compute_q_loss(buffer, ac_targ)
         loss_q.backward()
         q_optim.step()
         # Record things
@@ -171,7 +173,7 @@ class MLPAC_4_team(nn.Module):
                 p.requires_grad = False
 
             pi_optim.zero_grad()
-            loss_pi = self.compute_loss_pi(team_buffer)
+            loss_pi = self.compute_loss_pi(buffer)
             loss_pi.backward()
             pi_optim.step()
 
@@ -276,11 +278,11 @@ class TD3_team_alg:
 
         ## creation of replay buffers, we need n_players replay buffers + 1 replay buffer for the critics:
         # Experience buffer:
-        team_buffer = [ReplayBuffer(obs_dim=self.obs_dim, act_dim=self.act_dim, size=self.replay_size)\
-                            for _ in range(n_players)]
-        critic_buffer = ReplayBuffer(obs_dim=self.obs_dim, act_dim=self.act_dim, size=self.replay_size)
+        obs_mat = (n_players, self.obs_dim[0])
+        act_mat = (n_players,self.act_dim)
+        critic_buffer = ReplayBuffer(obs_mat, act_dim=act_mat, size=self.replay_size, rew_dim=n_players)
         var_counts = list(count_vars(module) for module in [*ac.pi, ac.q1, ac.q2])
-        return ac, ac_targ, q_params, team_buffer, critic_buffer, var_counts
+        return ac, ac_targ, q_params, critic_buffer, var_counts
     
     def compute_q_loss(self, q_home_data, q_away_data):
         return [self.home_ac.compute_q_loss(q_home_data, self.home_ac_targ, self.loss_param_dict),\
@@ -446,7 +448,7 @@ class soccer2vs0(TD3_team_alg):
         #### CREATION OF HOME TEAM ##########################
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
-        self.home_ac, self.home_ac_targ, self.home_q_params, self.home_team_buffer, self.home_critic_buffer\
+        self.home_ac, self.home_ac_targ, self.home_q_params, self.home_critic_buffer\
                     , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs) 
 
 
@@ -465,16 +467,15 @@ class soccer2vs0(TD3_team_alg):
     def compute_loss_pi(self, data_home):
         return self.home_ac.compute_loss_pi(data_home)
     
-    def update(self, data_home_team, data_home_q, timer):
+    def update(self,  data, timer):
         polyak = self.training_param_dict['polyak']
-        self.home_ac.update(data_home_team, data_home_q,self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
+        self.home_ac.update(data, self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
                             timer, self.logger,self.home_q_params, polyak)
 
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
-        critic_using = not (o.shape[0] == self.training_param_dict["batch_size"])
-        actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda(), critic_using).cpu().numpy()
+        actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
         actions += noise_scale*np.random.randn(self.act_dim)
         return np.clip(actions, -act_lim, act_lim)
 
@@ -486,7 +487,8 @@ class soccer2vs0(TD3_team_alg):
             o, d, ep_ret, ep_len = self.test_env.reset(), False, np.array([0]*(self.home), dtype='float32'), 0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                o, r, d, _ = self.test_env.step(self.get_action(o, 0))
+                actions = self.get_action(o[np.newaxis, :], 0)
+                o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(actions.shape[0])])
                 ep_ret += r
                 ep_len += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
@@ -523,19 +525,15 @@ class soccer2vs0(TD3_team_alg):
                 o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
 
             # store in buffer: 
-            for i, home_buf in enumerate(self.home_team_buffer):
-                home_buf.store(o[i], a[i], r[i], o2[i], d)
-                self.home_critic_buffer.store(o[i], a[i], r[i], o2[i], d)
+            self.home_critic_buffer.store(o, a, r, o2, d)
 
             # Update handling
             if t >= self.training_param_dict[ "update_after"] and t % self.training_param_dict["update_every"] == 0:
                 for j in range(self.training_param_dict["update_every"]):
                     # sample from home buffers: 
-                    batch_home = [buf.sample_batch(self.training_param_dict["batch_size"])\
-                                  for buf in self.home_team_buffer]
                     batch_q_home = self.home_critic_buffer.sample_batch(self.training_param_dict["batch_size"])
 
-                    self.update(batch_home, batch_q_home, timer=j)
+                    self.update(batch_q_home, timer=j)
 
             if (t+1)% steps_per_epoch == 0:
                 epoch = (t+1) // steps_per_epoch

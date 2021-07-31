@@ -197,7 +197,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1) / 10
-		beta = alpha/5
+		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
@@ -205,14 +205,14 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			# there was not a goal: 
 			kickable_now_first = (kickable * (1 - self.got_kickable_rew))
 			# we set the distance of the goalpost and the ball. 
-			delta_D = ((ball_op_goal_dist) \
-						- (ball_team_goal_dist))
-			delta_ball_d = ball_dist #- self.old_ball_dist
-			delta_teammate_ball_d = ball_teammate_dist #- self.old_ball_teammate_dist 
+			delta_D = ((self.old_ball_op_goal_dist - ball_op_goal_dist) \
+						- (self.old_ball_team_goal_dist - ball_team_goal_dist))
+			delta_ball_d = ball_dist - self.old_ball_dist
+			delta_teammate_ball_d = ball_teammate_dist - self.old_ball_teammate_dist 
 			delta_ball_op_goal_dist = ball_op_goal_dist #- self.old_ball_op_goal_dist
 			
 			kickable_reward = beta
-			still_is_kickable_reward =  beta/100 + 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
+			still_is_kickable_reward = beta/10 + 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
 			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1
 
 			rewards += kickable_now_first*kickable_reward \
