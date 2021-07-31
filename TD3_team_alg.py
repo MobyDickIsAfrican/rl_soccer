@@ -481,6 +481,7 @@ class soccer2vs0(TD3_team_alg):
 
 
     def test_agent(self):
+        succes_rate = 0
         num_test_episodes = self.training_param_dict["num_test_episodes"]
         max_ep_len = self.training_param_dict["max_ep_len"]
         for j in range(num_test_episodes):
@@ -491,7 +492,11 @@ class soccer2vs0(TD3_team_alg):
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(actions.shape[0])])
                 ep_ret += r
                 ep_len += 1
+            if (ep_len < max_ep_len or r >20):
+                succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
+        succes_rate /= num_test_episodes
+        return succes_rate
 
     def train_agents(self):
         
@@ -543,9 +548,10 @@ class soccer2vs0(TD3_team_alg):
                     self.logger.save_state({'env': self.env}, None)
 
                 # Test the performance of the deterministic version of the agent.
-                self.test_agent()
+                succes_rate = self.test_agent()
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
+                self.logger.log_tabular('Epoch', succes_rate)
                 self.logger.log_tabular('EpRet', with_min_and_max=True)
                 self.logger.log_tabular('TestEpRet', with_min_and_max=True)
                 self.logger.log_tabular('EpLen', average_only=True)
@@ -560,15 +566,22 @@ class soccer2vs0(TD3_team_alg):
             
 if __name__ == '__main__':
     import argparse
+    from math import ceil
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--exp_name', type=str, default='td3_soccer')
+    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--epochs', type=int, default=2000)
+    parser.add_argument("--control_timestep", type=float, default=0.05)
+    parser.add_argument("--time_limit", type=float, default=30.)
+    args = parser.parse_args()
     args = parser.parse_args()
 
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed, "result_soccer")
-    env_creator = lambda :   stage_soccerTraining(team_1=2, team_2=0) 
-    T3 = soccer2vs0(env_creator, 2, logger_kwargs= logger_kwargs)   
+    env_creator = lambda :   stage_soccerTraining(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
+        "dist_thresh": 0.03, 'control_timestep': args.control_timestep}) 
+    T3 = soccer2vs0(env_creator, 2, logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep))   
     T3.train_agents()      
 
 
