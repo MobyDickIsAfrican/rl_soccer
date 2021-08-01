@@ -74,9 +74,9 @@ class MLPActor(nn.Module):
 
 class MLPQFunction(nn.Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
+    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, n_players=1):
         super().__init__()
-        self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [1], activation)
+        self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [n_players], activation)
 
     def forward(self, obs, act):
         obs = torch.flatten(obs, 1, -1)
@@ -106,8 +106,8 @@ class MLPAC_4_team(nn.Module):
         # build critic: 
         critic_obs_dim = players*obs_dim
         critic_action_dim = players*act_dim
-        self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation)
-        self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation)
+        self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
+        self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
 
     def act(self, obs):
         with torch.no_grad():
@@ -141,7 +141,7 @@ class MLPAC_4_team(nn.Module):
             q1_pi_targ = ac_targ.q1(o2, a2)
             q2_pi_targ = ac_targ.q2(o2, a2)
             q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
-            backup = r[:,0] + (gamma * (1 - d) * q_pi_targ)
+            backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
         loss_q1 = ((q1 - backup)**2).mean()
