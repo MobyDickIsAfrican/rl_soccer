@@ -167,7 +167,7 @@ class MLPAC_4_team(nn.Module):
         loss_q.backward()
         q_optim.step()
         # Record things
-        logger.store(team=self.team, LossQ=loss_q.item(),**loss_info)
+        logger.store(team=self.team, LossQ=loss_q.item(), **loss_info)
         if timer % policy_delay:
             for p in q_param:
                 p.requires_grad = False
@@ -475,7 +475,7 @@ class soccer2vs0(TD3_team_alg):
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
-        actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
+        actions = self.home_ac_targ.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
         actions += noise_scale*np.random.randn(self.act_dim)
         return np.clip(actions, -act_lim, act_lim)
 
@@ -572,7 +572,7 @@ if __name__ == '__main__':
     parser.add_argument('--exp_name', type=str, default='td3_soccer')
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument("--control_timestep", type=float, default=0.05)
+    parser.add_argument("--control_timestep", type=float, default=0.1)
     parser.add_argument("--time_limit", type=float, default=30.)
     args = parser.parse_args()
     args = parser.parse_args()

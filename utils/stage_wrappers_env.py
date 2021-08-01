@@ -196,7 +196,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		kickable = np.any(ball_dist < self.dist_thresh)
 
 		# rewards of each player in the game 
-		alpha = (int(self.time_limit / self.control_timestep) + 1) / 10
+		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
 		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 
@@ -212,7 +212,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			delta_ball_op_goal_dist = ball_op_goal_dist - self.old_ball_op_goal_dist
 			
 			kickable_reward = beta
-			still_is_kickable_reward = beta/10 + 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
+			still_is_kickable_reward =  1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
 			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1
 
 			rewards += kickable_now_first*kickable_reward \
