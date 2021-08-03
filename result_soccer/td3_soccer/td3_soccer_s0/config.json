@@ -4,11 +4,11 @@
     "act_noise":	0.1,
     "actor_critic":	"MLPAC_4_team",
     "batch_size":	100,
-    "env_fn":	"<function <lambda> at 0x0000019B47B37820>",
+    "env_fn":	"<function <lambda> at 0x0000021AAD939820>",
     "epochs":	2000,
     "exp_name":	"td3_soccer",
     "gamma":	0.99,
-    "home_players":	2,
+    "home_players":	1,
     "logger_kwargs":	{
         "exp_name":	"td3_soccer",
         "output_dir":	"result_soccer\\td3_soccer\\td3_soccer_s0"

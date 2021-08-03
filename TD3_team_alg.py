@@ -95,15 +95,17 @@ class MLPQFunction(nn.Module):
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation, n_players=1):
         super().__init__()
         self.n_players = n_players
+        self.prop_offset = 2 + (n_players-1)*2
+        self.ext_offset = 6*n_players 
         self.q = mlp([obs_dim] + list(hidden_sizes) + [n_players], activation)
-        self.obs_analyzer = nn.ModuleList([mlp([4+act_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
-                            + [mlp([12+act_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players-1)] )
+        self.obs_analyzer = nn.ModuleList([mlp([self.prop_offset+act_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
+                            + [mlp([6*(n_players) + act_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players-1)] )
     
     def analyze_observation(self, obs, act):
         obs = torch.flatten(obs, 1)
         act = torch.flatten(act, 1)
-        obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, 4*i : 4*(i+1)], act], -1)) for i in range(9)]
-        obs_ext = [self.obs_analyzer[9 + i](torch.cat([obs[:, 24 + 12*i : 24 + 12*(i+1)], act], -1)) for i in range(self.n_players-1)]
+        obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, self.prop_offset*i : self.prop_offset*(i+1)], act], -1)) for i in range(9)]
+        obs_ext = [self.obs_analyzer[9 + i](torch.cat([obs[:, self.prop_offset*9 + self.ext_offset*i : self.prop_offset*9 + self.ext_offset*(i+1)], act], -1)) for i in range(self.n_players-1)]
         return torch.cat(obs_prop + obs_ext, -1)
 
     def forward(self, obs, act):
