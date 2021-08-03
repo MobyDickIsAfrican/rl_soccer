@@ -1,4 +1,5 @@
 from dm_control.composer.define import observable
+from torch.nn.modules.activation import LeakyReLU
 from spinup.algos.pytorch.td3.td3 import td3_soccer_game
 from utils.stage_wrappers_env import stage_soccerTraining 
 from numpy.lib.npyio import save
@@ -62,27 +63,53 @@ def count_vars(module):
 
 class MLPActor(nn.Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit):
+    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit, n_players=1):
         super().__init__()
+        # setting the amount of players that will play
+        self.n_players = n_players
+        # setting the size of the policy network:
+        # where obs_dim is the dimension of the observations after going through the mlp
+        # hidden_sizes is a list that shows the amount of hidden layers
+        # act_dim is the action dimension of the players.
         pi_sizes = [obs_dim] + list(hidden_sizes) + [act_dim]
+        # setting the mlp
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
+        # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i, action
+        # the first list is for propioceptive observations and the second list is for external players
+        self.obs_analyzer = nn.ModuleList([mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
+                            + [mlp([6, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players)] )
         self.act_limit = torch.Tensor(np.array(act_limit)).cpu()
+    
+    def analyze_observation(self, obs):
+        obs_prop = [self.obs_analyzer[i](obs[:, 2*i:2*(i+1)]) for i in range(9)]
+        obs_ext = [self.obs_analyzer[9 + i](obs[:, 18 + 6*i:18 + 6*(i+1)]) for i in range(self.n_players)]
+        return torch.cat(obs_prop + obs_ext, -1)
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
+        obs = self.analyze_observation(obs)
         return self.act_limit * self.pi(obs)
 
 class MLPQFunction(nn.Module):
 
     def __init__(self, obs_dim, act_dim, hidden_sizes, activation, n_players=1):
         super().__init__()
-        self.q = mlp([obs_dim + act_dim] + list(hidden_sizes) + [n_players], activation)
+        self.n_players = n_players
+        self.q = mlp([obs_dim] + list(hidden_sizes) + [n_players], activation)
+        self.obs_analyzer = nn.ModuleList([mlp([4+act_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
+                            + [mlp([12+act_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players-1)] )
+    
+    def analyze_observation(self, obs, act):
+        obs = torch.flatten(obs, 1)
+        act = torch.flatten(act, 1)
+        obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, 4*i : 4*(i+1)], act], -1)) for i in range(9)]
+        obs_ext = [self.obs_analyzer[9 + i](torch.cat([obs[:, 24 + 12*i : 24 + 12*(i+1)], act], -1)) for i in range(self.n_players-1)]
+        return torch.cat(obs_prop + obs_ext, -1)
 
     def forward(self, obs, act):
-        obs = torch.flatten(obs, 1, -1)
-        act = torch.flatten(act, 1, -1)
-        q = self.q(torch.cat([obs, act], dim=-1))
-        return torch.squeeze(q, -1) # Critical to ensure q has right shape.
+        obs = self.analyze_observation(obs, act)
+        q = self.q(obs)
+        return q # Critical to ensure q has right shape.
 
 
 
@@ -91,8 +118,7 @@ class MLPAC_4_team(nn.Module):
     def __init__(self, team, players, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
                 activation=nn.ReLU):
         super().__init__()
-
-        obs_dim = observation_space.shape[0]
+        obs_dim = 64*9 + (players-1)*64
         act_dim = action_space.shape[0]
         act_limit = action_space.high[0]
         self.polyak = polyak
@@ -100,11 +126,11 @@ class MLPAC_4_team(nn.Module):
         self.team = team
 
         # build policy for each player in team
-        self.pi = nn.ModuleList([MLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit)\
+        self.pi = nn.ModuleList([MLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit, players-1)\
                                                          for _ in range(players)])
         
         # build critic: 
-        critic_obs_dim = players*obs_dim
+        critic_obs_dim = obs_dim
         critic_action_dim = players*act_dim
         self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
         self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
@@ -116,7 +142,6 @@ class MLPAC_4_team(nn.Module):
     def compute_q_loss(self, data, ac_targ):
         o, a, r, o2, d = torch.Tensor(data['obs']).cuda(), torch.Tensor(data['act']).cuda(), torch.Tensor(np.array(data['rew'])).cuda(),\
                          torch.Tensor(data['obs2']).cuda(), torch.Tensor(data['done']).cuda()
-
         q1 = self.q1(o,a)
         q2 = self.q2(o,a)
 
@@ -156,8 +181,8 @@ class MLPAC_4_team(nn.Module):
 
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
-        o = [torch.Tensor(data["obs"][:,i,:]).cuda() for i in range(data["obs"].shape[1])]
-        q1_pi = self.q1(data["obs"].cuda(), torch.cat([torch.unsqueeze(self.pi[i](o[i]), 1) for i in range(len(self.pi))],1))
+        o = torch.Tensor(data["obs"]).cuda()
+        q1_pi = self.q1(o, torch.cat([torch.unsqueeze(self.pi[i](o[:,i,:]), 1) for i in range(len(self.pi))],1))
         return -q1_pi.mean()[np.newaxis]
 
     # update method for the networks: 
@@ -186,6 +211,7 @@ class MLPAC_4_team(nn.Module):
 
             # Finally, update target networks by polyak averaging.
             with torch.no_grad():
+                                   
                 for p, p_targ in zip(self.pi.parameters(), ac_targ.parameters()):
                     # NB: We use an in-place operations "mul_", "add_" to update target
                     # params, as opposed to "mul" and "add", which would make new tensors.
@@ -459,6 +485,7 @@ class soccer2vs0(TD3_team_alg):
         # Set up optimizers for policy and q-function for the home team
         self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
+
 
 
     def compute_q_loss(self, q_home_data):
