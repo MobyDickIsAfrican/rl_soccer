@@ -118,7 +118,7 @@ class MLPQFunction(nn.Module):
 class MLPAC_4_team(nn.Module):
 
     def __init__(self, team, players, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
-                activation=nn.ReLU):
+                activation=nn.LeakyReLU):
         super().__init__()
         obs_dim = 64*9 + (players-1)*64
         act_dim = action_space.shape[0]
@@ -167,12 +167,12 @@ class MLPAC_4_team(nn.Module):
             # Target Q-values
             q1_pi_targ = ac_targ.q1(o2, a2)
             q2_pi_targ = ac_targ.q2(o2, a2)
-            q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
+            q_pi_targ = torch.minimum(q1_pi_targ, q2_pi_targ)
             backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
-        loss_q1 = ((q1 - backup)**2).mean()
-        loss_q2 = ((q2 - backup)**2).mean()
+        loss_q1 = (torch.square((q1 - backup))).mean()
+        loss_q2 = (torch.square((q2 - backup))).mean()
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
@@ -185,7 +185,7 @@ class MLPAC_4_team(nn.Module):
     def compute_loss_pi(self, data):
         o = torch.Tensor(data["obs"]).cuda()
         q1_pi = self.q1(o, torch.cat([torch.unsqueeze(self.pi[i](o[:,i,:]), 1) for i in range(len(self.pi))],1))
-        return -q1_pi.mean()[np.newaxis]
+        return -q1_pi.mean()
 
     # update method for the networks: 
     def update(self, buffer, q_optim, pi_optim, ac_targ, timer, logger, q_param, policy_delay):
