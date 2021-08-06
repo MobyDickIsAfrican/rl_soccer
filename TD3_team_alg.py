@@ -1,4 +1,5 @@
 from dm_control.composer.define import observable
+from torch._C import device
 from torch.nn.modules.activation import LeakyReLU
 from spinup.algos.pytorch.td3.td3 import td3_soccer_game
 from utils.stage_wrappers_env import stage_soccerTraining 
@@ -154,12 +155,13 @@ class MLPAC_4_team(nn.Module):
         gamma = self.loss_dict["gamma"]
 
 
+
         # Bellman backup for Q functions
         with torch.no_grad():
             pi_targ = ac_targ.act(o2)
 
             # Target policy smoothing
-            epsilon = torch.randn_like(pi_targ) * target_noise
+            epsilon = torch.normal(0, target_noise, size=pi_targ.shape, device=pi_targ.device) * target_noise
             epsilon = torch.clamp(epsilon, -noise_clip, noise_clip)
             a2 = pi_targ + epsilon
             a2 = torch.clamp(a2, -act_limit, act_limit)
@@ -505,7 +507,7 @@ class soccer2vs0(TD3_team_alg):
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         actions = self.home_ac_targ.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
-        actions += noise_scale*np.random.randn(self.act_dim)
+        actions += np.random.normal(0, noise_scale), self.loss_param_dict["noise_clip"]
         return np.clip(actions, -act_lim, act_lim)
 
 
