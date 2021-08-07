@@ -545,8 +545,9 @@ class soccer2vs0(TD3_team_alg):
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
             if t > start_steps:
-                a = self.get_action(o[np.newaxis, :], self.act_noise)
-                a = [a[0, i, :] for i in range(a.shape[1])]
+                with torch.no_grad():
+                    a = self.get_action(o[np.newaxis, :], self.act_noise)
+                    a = [a[0, i, :] for i in range(a.shape[1])]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home)]
 
@@ -579,7 +580,8 @@ class soccer2vs0(TD3_team_alg):
                     self.logger.save_state({'env': self.env}, None)
 
                 # Test the performance of the deterministic version of the agent.
-                succes_rate = self.test_agent()
+                with torch.no_grad():
+                 succes_rate = self.test_agent()
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
                 self.logger.log_tabular('Success rate', succes_rate)
