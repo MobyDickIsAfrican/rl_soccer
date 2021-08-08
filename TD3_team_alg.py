@@ -571,7 +571,7 @@ class soccer2vs0(TD3_team_alg):
             self.home_critic_buffer.store(o, a, r, o2, d)
 
             # Update handling
-            if t >= (self.training_param_dict[ "update_after"]-1) and t % self.training_param_dict["update_every"] == 0:
+            if (t+1) >= self.training_param_dict[ "update_after"] and (t+1) % self.training_param_dict["update_every"] == 0:
                 for j in range(self.training_param_dict["update_every"]):
                     # sample from home buffers: 
                     batch_q_home = self.home_critic_buffer.sample_batch(self.training_param_dict["batch_size"])
