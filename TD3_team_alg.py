@@ -75,7 +75,7 @@ class MLPActor(nn.Module):
         pi_sizes = [obs_dim] + list(hidden_sizes) + [act_dim]
         # setting the mlp
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
-        # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i, action
+        # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i
         # the first list is for propioceptive observations and the second list is for external players
         self.obs_analyzer = nn.ModuleList([mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
                             + [mlp([6, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players)] )
@@ -83,7 +83,7 @@ class MLPActor(nn.Module):
     
     def analyze_observation(self, obs):
         obs_prop = [self.obs_analyzer[i](obs[:, 2*i:2*(i+1)]) for i in range(9)]
-        obs_ext = [self.obs_analyzer[9 + i](obs[:, 18 + 6*i:18 + 6*(i+1)]) for i in range(self.n_players)]
+        obs_ext = [self.obs_analyzer[9 + i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)]
         return torch.cat(obs_prop + obs_ext, -1)
 
     def forward(self, obs):
@@ -139,8 +139,7 @@ class MLPAC_4_team(nn.Module):
         self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
 
     def act(self, obs):
-        with torch.no_grad():
-                return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :]),1) for i in range(len(self.pi))], axis=1)
+        return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :]),1) for i in range(len(self.pi))], axis=1)
 
     def compute_q_loss(self, data, ac_targ):
         o, a, r, o2, d = torch.Tensor(data['obs']).cuda(), torch.Tensor(data['act']).cuda(), torch.Tensor(np.array(data['rew'])).cuda(),\
@@ -161,7 +160,7 @@ class MLPAC_4_team(nn.Module):
             pi_targ = ac_targ.act(o2)
 
             # Target policy smoothing
-            epsilon = torch.normal(0, target_noise, size=pi_targ.shape, device=pi_targ.device) * target_noise
+            epsilon = torch.normal(0, target_noise, size=pi_targ.shape, device=pi_targ.device)
             epsilon = torch.clamp(epsilon, -noise_clip, noise_clip)
             a2 = pi_targ + epsilon
             a2 = torch.clamp(a2, -act_limit, act_limit)
@@ -186,7 +185,7 @@ class MLPAC_4_team(nn.Module):
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
         o = torch.Tensor(data["obs"]).cuda()
-        q1_pi = self.q1(o, torch.cat([torch.unsqueeze(self.pi[i](o[:,i,:]), 1) for i in range(len(self.pi))],1))
+        q1_pi = self.q1(o, self.act(o))
         return -q1_pi.mean()
 
     # update method for the networks: 
@@ -198,12 +197,18 @@ class MLPAC_4_team(nn.Module):
         # Record things
         logger.store(team=self.team, LossQ=loss_q.item(), **loss_info)
         if timer % policy_delay:
+            # freeze critic: 
             for p in q_param:
                 p.requires_grad = False
 
+            # set gradiente to zero:
             pi_optim.zero_grad()
+            # calculate loss: 
             loss_pi = self.compute_loss_pi(buffer)
+
+            #calculate backward grads
             loss_pi.backward()
+            # update weights:
             pi_optim.step()
 
             # unfreeze critics: 
@@ -435,10 +440,10 @@ class TD3_team_alg:
                 
 class soccer2vs0(TD3_team_alg):
     def __init__(self, env_fn, home_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
-        steps_per_epoch=10000, epochs=2000, replay_size=int(1e6), gamma=0.99, 
-        polyak=0.995, pi_lr=4e-3, q_lr=4e-3, batch_size=100, start_steps=10000, 
-        update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
-        noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
+        steps_per_epoch=10000, epochs=2000, replay_size=int(2e6), gamma=0.99, 
+        polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=50000, 
+        update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
+        noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
         logger_kwargs=dict(), save_freq=1) -> None:
 
         
@@ -581,7 +586,7 @@ class soccer2vs0(TD3_team_alg):
 
                 # Test the performance of the deterministic version of the agent.
                 with torch.no_grad():
-                 succes_rate = self.test_agent()
+                    succes_rate = self.test_agent()
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
                 self.logger.log_tabular('Success rate', succes_rate)
