@@ -16,10 +16,12 @@ args = parser.parse_args()
 args = parser.parse_args()
 
 env_creator = lambda : dm_soccer2gym.make('1vs0goal', task_kwargs={"rew_type": args.reward, "time_limit": args.time_limit, "disable_jump": True, 
-                "dist_thresh": 0.03, 'control_timestep': args.control_timestep})
+                "dist_thresh": 0.03, 'control_timestep': 0.1})
+env_test_creator = lambda : dm_soccer2gym.make('1vs0goal', task_kwargs={"rew_type": "simple_v2", "time_limit": args.time_limit, "disable_jump": True, 
+        "dist_thresh": 0.03, 'control_timestep': 0.1, 'random_state': 69})
 
 from spinup.utils.run_utils import setup_logger_kwargs
 
 logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed, "result_soccer")
-T3 = soccer2vs0(env_creator, 1, logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep))   
+T3 = soccer2vs0(env_creator,  1, logger_kwargs= logger_kwargs, epochs= 200, max_ep_len=ceil(args.time_limit / 0.1), test_fn=env_test_creator)   
 T3.train_agents()  
