@@ -184,8 +184,12 @@ class MLPAC_4_team(nn.Module):
 
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
+        # get the observation vector to cuda:
         o = torch.Tensor(data["obs"]).cuda()
+        # compute the Q value of the state, action: 
         q1_pi = self.q1(o, self.act(o))
+        # get the mean value of the q1_pi values and turn them negative
+        # for gradient descent
         return -q1_pi.mean()
 
     # update method for the networks: 
@@ -575,6 +579,7 @@ class soccer2vs0(TD3_team_alg):
 
             # store in buffer: 
             self.home_critic_buffer.store(o, a, r, o2, d)
+            o = o2
 
             # Update handling
             if (t+1) >= self.training_param_dict[ "update_after"] and (t+1) % self.training_param_dict["update_every"] == 0:
