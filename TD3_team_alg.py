@@ -512,7 +512,7 @@ class soccer2vs0(TD3_team_alg):
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
-        actions += np.random.normal(0, noise_scale), self.loss_param_dict["noise_clip"]
+        actions += np.random.normal(0, noise_scale)
         return np.clip(actions, -act_lim, act_lim)
 
 
@@ -543,6 +543,8 @@ class soccer2vs0(TD3_team_alg):
         start_steps = self.training_param_dict["start_steps"]
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
+
+        # we start the environment: 
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
 
         for t in range(total_steps):
@@ -554,7 +556,7 @@ class soccer2vs0(TD3_team_alg):
                     a = self.get_action(o[np.newaxis, :], self.act_noise)
                     a = [a[0, i, :] for i in range(a.shape[1])]
             else:
-                a = [self.env.action_space.sample() for _ in range(self.home)]
+                    a = [self.env.action_space.sample() for _ in range(self.home)]
 
             # step in the env:
             o2, r, d, _ = self.env.step(a)
@@ -587,6 +589,7 @@ class soccer2vs0(TD3_team_alg):
                 # Test the performance of the deterministic version of the agent.
                 with torch.no_grad():
                     succes_rate = self.test_agent()
+                    
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
                 self.logger.log_tabular('Success rate', succes_rate)
