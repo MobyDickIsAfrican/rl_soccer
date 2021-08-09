@@ -4,7 +4,7 @@
     "act_noise":	0.1,
     "actor_critic":	"MLPAC_4_team",
     "batch_size":	256,
-    "env_fn":	"<function <lambda> at 0x0000024F61BA8790>",
+    "env_fn":	"<function <lambda> at 0x00000271BFDA8820>",
     "epochs":	2000,
     "exp_name":	"td3_soccer",
     "gamma":	0.99,
