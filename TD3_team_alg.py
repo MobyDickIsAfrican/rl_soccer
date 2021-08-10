@@ -453,7 +453,7 @@ class soccer2vs0(TD3_team_alg):
         
         self.home = home_players
         self.__name__ = "training"
-        self.env, self.test_env = env_fn(), test_fn() if test_fn is not None else env_fn
+        self.env, self.test_env = env_fn(), test_fn() if test_fn is not None else env_fn()
         
         self.obs_dim = self.env.observation_space.shape
         self.act_dim = self.env.action_space.shape[0]
