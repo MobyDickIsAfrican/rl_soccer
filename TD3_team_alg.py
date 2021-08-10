@@ -573,14 +573,15 @@ class soccer2vs0(TD3_team_alg):
 
             d = False if ep_len == max_ep_len else d
 
-            if d or (ep_len == max_ep_len):
-                self.logger.store(EpRet=ep_ret, EpLen=ep_len)
-                o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
-
             # store in buffer: 
             self.home_critic_buffer.store(o, a, r, o2, d)
             o = o2
 
+            if d or (ep_len == max_ep_len):
+                self.logger.store(EpRet=ep_ret, EpLen=ep_len)
+                o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
+
+            
             # Update handling
             if (t+1) >= self.training_param_dict[ "update_after"] and (t+1) % self.training_param_dict["update_every"] == 0:
                 for j in range(self.training_param_dict["update_every"]):
