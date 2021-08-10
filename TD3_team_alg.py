@@ -517,7 +517,7 @@ class soccer2vs0(TD3_team_alg):
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
-        actions += noise_scale*np.random.randn(size=actions.shape)
+        actions += noise_scale*np.random.randn(*actions.shape)
         return np.clip(actions, -act_lim, act_lim)
 
 
