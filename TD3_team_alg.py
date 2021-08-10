@@ -172,8 +172,8 @@ class MLPAC_4_team(nn.Module):
             backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
-        loss_q1 = (torch.square((q1 - backup))).mean()
-        loss_q2 = (torch.square((q2 - backup))).mean()
+        loss_q1 = torch.mean(torch.square((q1 - backup)))
+        loss_q2 = torch.mean(torch.square((q2 - backup)))
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
@@ -453,10 +453,7 @@ class soccer2vs0(TD3_team_alg):
         
         self.home = home_players
         self.__name__ = "training"
-        if test_fn:
-            self.env, self.test_env = env_fn(), test_fn()
-        else: 
-            self.env, self.test_env = env_fn(), env_fn()
+        self.env, self.test_env = env_fn(), test_fn if test_fn is not None else env_fn
         
         self.obs_dim = self.env.observation_space.shape
         self.act_dim = self.env.action_space.shape[0]
@@ -520,7 +517,7 @@ class soccer2vs0(TD3_team_alg):
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         actions = self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32).cuda()).cpu().numpy()
-        actions += np.random.normal(0, noise_scale, size=actions.shape)
+        actions += noise_scale*np.random.randn(size=actions.shape)
         return np.clip(actions, -act_lim, act_lim)
 
 
@@ -533,7 +530,7 @@ class soccer2vs0(TD3_team_alg):
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o[np.newaxis, :], 0)
-                o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(actions.shape[0])])
+                o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len):
@@ -547,7 +544,7 @@ class soccer2vs0(TD3_team_alg):
         epochs = self.training_param_dict["epochs"]
         steps_per_epoch = self.training_param_dict["steps_per_epoch"]
         save_freq = self.training_param_dict["save_freq"]
-        total_steps = steps_per_epoch*epochs
+        total_steps = steps_per_epoch * epochs
         start_steps = self.training_param_dict["start_steps"]
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
@@ -562,7 +559,7 @@ class soccer2vs0(TD3_team_alg):
             if t > start_steps:
                 with torch.no_grad():
                     a = self.get_action(o[np.newaxis, :], self.act_noise)
-                    a = [a[0, i, :] for i in range(a.shape[1])]
+                    a = [a[0, i, :] for i in range(self.home)]
             else:
                     a = [self.env.action_space.sample() for _ in range(self.home)]
 
