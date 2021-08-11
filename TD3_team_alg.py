@@ -509,7 +509,7 @@ class soccer2vs0(TD3_team_alg):
             with torch.no_grad():
 
                 # update policy:                
-                for p, p_targ in zip(self.home_ac, self.home_ac_targ):
+                for p, p_targ in zip(self.home_ac.parameters(), self.home_ac_targ.parameters()):
                     # NB: We use an in-place operations "mul_", "add_" to update target
                     # params, as opposed to "mul" and "add", which would make new tensors.
                     p_targ.data.mul_(self.polyak)
