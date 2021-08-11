@@ -4,11 +4,11 @@
     "act_noise":	0.1,
     "actor_critic":	"MLPAC_4_team",
     "batch_size":	256,
-    "env_fn":	"<function <lambda> at 0x00000287C857B940>",
-    "epochs":	200,
+    "env_fn":	"<function <lambda> at 0x0000023235E879D0>",
+    "epochs":	2000,
     "exp_name":	"td3_soccer",
     "gamma":	0.99,
-    "home_players":	1,
+    "home_players":	2,
     "logger_kwargs":	{
         "exp_name":	"td3_soccer",
         "output_dir":	"result_soccer\\td3_soccer\\td3_soccer_s0"
@@ -27,7 +27,7 @@
     "start_steps":	50000,
     "steps_per_epoch":	10000,
     "target_noise":	0.1,
-    "test_fn":	"<function <lambda> at 0x00000287C857B820>",
+    "test_fn":	null,
     "update_after":	10000,
     "update_every":	50
 }
