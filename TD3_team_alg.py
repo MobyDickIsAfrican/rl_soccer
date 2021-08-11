@@ -224,8 +224,19 @@ class MLPAC_4_team(nn.Module):
 
             # Finally, update target networks by polyak averaging.
             with torch.no_grad():
-                                   
-                for p, p_targ in zip(self.pi.parameters(), ac_targ.parameters()):
+
+                # update policy:                
+                for p, p_targ in zip(self.pi.parameters(), ac_targ.pi.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(self.polyak)
+                    p_targ.data.add_((1 - self.polyak) * p.data)
+                
+
+                # update critics: 
+                q_targ_params = itertools.chain(ac_targ.q1.parameters(), ac_targ.q2.parameters())
+
+                for p_targ, p in zip(q_targ_params, q_param):
                     # NB: We use an in-place operations "mul_", "add_" to update target
                     # params, as opposed to "mul" and "add", which would make new tensors.
                     p_targ.data.mul_(self.polyak)
