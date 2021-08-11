@@ -505,7 +505,7 @@ class soccer2vs0(TD3_team_alg):
         polyak = self.training_param_dict['polyak']
         self.home_ac.update(data, self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
                             timer, self.logger, self.home_q_params, policy_delay)
-        if timer % policy_delay:
+        if (timer % policy_delay) == 0 :
             # Finally, update target networks by polyak averaging.
             with torch.no_grad():
 
