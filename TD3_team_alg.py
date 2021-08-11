@@ -513,8 +513,7 @@ class soccer2vs0(TD3_team_alg):
                 for p, p_targ in zip(self.home_ac.parameters(), self.home_ac_targ.parameters()):
                     # NB: We use an in-place operations "mul_", "add_" to update target
                     # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(polyak)
-                    p_targ.data.add_((1 - polyak) * p.data)
+                    p_targ.data.copy_((1-polyak) * p.data + polyak * p_targ.data)
                 
 
                 
