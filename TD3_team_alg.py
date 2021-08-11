@@ -222,26 +222,7 @@ class MLPAC_4_team(nn.Module):
             # Record things
             logger.store(team=self.team, LossPi=loss_pi.item()) 
 
-            # Finally, update target networks by polyak averaging.
-            with torch.no_grad():
-
-                # update policy:                
-                for p, p_targ in zip(self.pi.parameters(), ac_targ.pi.parameters()):
-                    # NB: We use an in-place operations "mul_", "add_" to update target
-                    # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(self.polyak)
-                    p_targ.data.add_((1 - self.polyak) * p.data)
-                
-
-                # update critics: 
-                q_targ_params = itertools.chain(ac_targ.q1.parameters(), ac_targ.q2.parameters())
-
-                for p_targ, p in zip(q_targ_params, q_param):
-                    # NB: We use an in-place operations "mul_", "add_" to update target
-                    # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(self.polyak)
-                    p_targ.data.add_((1 - self.polyak) * p.data)
-
+            
 class TD3_team_alg:
     def __init__(self, env_fn, home_players, away_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
@@ -520,10 +501,25 @@ class soccer2vs0(TD3_team_alg):
         return self.home_ac.compute_loss_pi(data_home)
     
     def update(self,  data, timer):
-        polyak = self.training_param_dict['polyak']
+        policy_delay = self.training_param_dict['policy_delay']
         self.home_ac.update(data, self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
-                            timer, self.logger,self.home_q_params, polyak)
+                            timer, self.logger, self.home_q_params, policy_delay)
+        if timer % policy_delay:
+            # Finally, update target networks by polyak averaging.
+            with torch.no_grad():
 
+                # update policy:                
+                for p, p_targ in zip(self.home_ac, self.home_ac_targ):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.mul_(self.polyak)
+                    p_targ.data.add_((1 - self.polyak) * p.data)
+                
+
+                
+
+        
+        
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
