@@ -200,7 +200,7 @@ class MLPAC_4_team(nn.Module):
         q_optim.step()
         # Record things
         logger.store(team=self.team, LossQ=loss_q.item(), **loss_info)
-        if timer % policy_delay:
+        if (timer % policy_delay) ==0:
             # freeze critic: 
             for p in q_param:
                 p.requires_grad = False
