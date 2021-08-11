@@ -502,6 +502,7 @@ class soccer2vs0(TD3_team_alg):
     
     def update(self,  data, timer):
         policy_delay = self.training_param_dict['policy_delay']
+        polyak = self.training_param_dict['polyak']
         self.home_ac.update(data, self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
                             timer, self.logger, self.home_q_params, policy_delay)
         if timer % policy_delay:
@@ -512,8 +513,8 @@ class soccer2vs0(TD3_team_alg):
                 for p, p_targ in zip(self.home_ac.parameters(), self.home_ac_targ.parameters()):
                     # NB: We use an in-place operations "mul_", "add_" to update target
                     # params, as opposed to "mul" and "add", which would make new tensors.
-                    p_targ.data.mul_(self.polyak)
-                    p_targ.data.add_((1 - self.polyak) * p.data)
+                    p_targ.data.mul_(polyak)
+                    p_targ.data.add_((1 - polyak) * p.data)
                 
 
                 
