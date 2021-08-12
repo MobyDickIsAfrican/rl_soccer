@@ -212,7 +212,7 @@ class stage_soccerTraining2(wrap.DmGoalWrapper):
 			delta_ball_op_goal_dist = ball_op_goal_dist
 			
 			kickable_reward = beta
-			still_is_kickable_reward = beta/10+ 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
+			still_is_kickable_reward = 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
 			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1
 
 			rewards += kickable_now_first*kickable_reward \
