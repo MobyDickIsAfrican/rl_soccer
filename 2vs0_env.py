@@ -14,7 +14,7 @@ args = parser.parse_args()
 args = parser.parse_args()
 
 from spinup.utils.run_utils import setup_logger_kwargs
-logger_kwargs = setup_logger_kwargs(args.exp_name, args.seed, "result_soccer")
+logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal2_2vs0_{args.control_timestep}', data_dir="/roberto/Proyecto/2vs0", datestamp=True)
 env_creator = lambda :   stage_soccerTraining2(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep}) 
 env_test_creator = lambda : stage_soccerTraining2(team_1=2, team_2=0, task_kwargs={"time_limit": args.time_limit, "disable_jump": True, 
