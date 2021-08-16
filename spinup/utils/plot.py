@@ -92,7 +92,7 @@ def get_datasets(logdir, condition=None):
                 print('Could not read from %s'%os.path.join(root,'progress.txt'))
                 continue
             performance_1 =  'Success rate'
-            performance_2 = 'AverageTestEpRet_P3' if 'AverageTestEpRet_P3' in exp_data else 'AverageTestEpLen'
+            performance_2 = 'AverageTestEpRet_P3' if 'AverageTestEpRet_P3' in exp_data else 'TestEpLen'
             exp_data.insert(len(exp_data.columns),'Unit',unit)
             exp_data.insert(len(exp_data.columns),'Condition1',condition1)
             exp_data.insert(len(exp_data.columns),'Condition2',condition2)
