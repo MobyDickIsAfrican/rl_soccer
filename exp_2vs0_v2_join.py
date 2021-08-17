@@ -19,5 +19,5 @@ env_creator = lambda :   stage_soccerTraining2(team_1=2, team_2=0,task_kwargs={ 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep}) 
 env_test_creator = lambda : stage_soccerTraining2(team_1=2, team_2=0, task_kwargs={"time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': 0.1, 'random_state': 69})
-T3 = soccer2vs0(env_creator, 2, logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), test_fn=env_test_creator)   
+T3 = soccer2vs0(env_creator, 2, epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), test_fn=env_test_creator)   
 T3.train_agents()      
