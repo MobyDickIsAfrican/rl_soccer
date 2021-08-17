@@ -641,9 +641,9 @@ if __name__ == '__main__':
 
     from spinup.utils.run_utils import setup_logger_kwargs
     logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs0{args.control_timestep}_2', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac7488/roberto/roberto/Proyecto/2vs0", datestamp=True)
-    env_creator = lambda :   stage_soccerTraining2(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
+    env_creator = lambda :   stage_soccerTraining_beta(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
         "dist_thresh": 0.03, 'control_timestep': args.control_timestep}) 
-    test_env_creator = lambda :   stage_soccerTraining2(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
+    test_env_creator = lambda :   stage_soccerTraining_beta(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
         "dist_thresh": 0.03, 'control_timestep': args.control_timestep, 'random_state': 69}) 
     T3 = soccer2vs0(env_creator, 2, logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), epochs=300)   
     T3.train_agents() 
