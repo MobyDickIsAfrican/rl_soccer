@@ -1,10 +1,8 @@
-from test_2vs0_env import stage_soccerTraining2
 from dm_control.composer.define import observable
 from torch._C import device
 from torch.nn.modules.activation import LeakyReLU
 from spinup.algos.pytorch.td3.td3 import td3_soccer_game
 from utils.stage_wrappers_env import stage_soccerTraining 
-from beta_2vs0_env import stage_soccerTraining_beta
 from numpy.lib.npyio import save
 import dm_soccer2gym.wrapper as wrap
 from torch import nn
@@ -626,24 +624,3 @@ class soccer2vs0(TD3_team_alg):
                 self.logger.log_tabular('Time', time.time()-start_time)
                 self.logger.dump_tabular()
             
-if __name__ == '__main__':
-    import argparse
-    from math import ceil
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', '-s', type=int, default=0)
-    parser.add_argument('--exp_name', type=str, default='td3_soccer')
-    parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--epochs', type=int, default=2000)
-    parser.add_argument("--control_timestep", type=float, default=0.1)
-    parser.add_argument("--time_limit", type=float, default=30.)
-    args = parser.parse_args()
-    args = parser.parse_args()
-
-    from spinup.utils.run_utils import setup_logger_kwargs
-    logger_kwargs = setup_logger_kwargs(f'td3_soccer_goal_2vs0{args.control_timestep}_2', data_dir="/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac7488/roberto/roberto/Proyecto/2vs0", datestamp=True)
-    env_creator = lambda :   stage_soccerTraining_beta(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
-        "dist_thresh": 0.03, 'control_timestep': args.control_timestep}) 
-    test_env_creator = lambda :   stage_soccerTraining_beta(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
-        "dist_thresh": 0.03, 'control_timestep': args.control_timestep, 'random_state': 69}) 
-    T3 = soccer2vs0(env_creator, 2, logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), epochs=300)   
-    T3.train_agents() 
