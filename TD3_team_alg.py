@@ -223,18 +223,18 @@ class MLPAC_4_team(nn.Module):
             logger.store(team=self.team, LossPi=loss_pi.item()) 
 
             
-class TD3_team_alg:
+class TD3_team_alg_freePlay:
     def __init__(self, env_fn, home_players, away_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=4000, epochs=100, replay_size=int(1e6), gamma=0.99, 
         polyak=0.995, pi_lr=4e-3, q_lr=4e-3, batch_size=100, start_steps=10000, 
         update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1) -> None: 
+        logger_kwargs=dict(), save_freq=1, test_fn=None) -> None: 
 
         self.home = home_players
         self.away = away_players
-        self.__name__ = "training"
-        self.env, self.test_env = env_fn(), env_fn()
+        self.__name__ = f"training_{home_players}_{away_players}"
+        self.env, self.test_env = env_fn(), test_fn() if test_fn is not None else env_fn()
         self.obs_dim = self.env.observation_space.shape
         self.act_dim = self.env.action_space.shape[0]
         self.replay_size = replay_size
@@ -264,20 +264,23 @@ class TD3_team_alg:
         self.logger.save_config(locals())
 
         
-
+        self.generate_teams(home_players, away_players, actor_critic,pi_lr, q_lr, ac_kwargs)
+        
+        
+    def generate_teams(self, home_players, away_players, actor_critic, pi_lr,q_lr,ac_kwargs):
         #### CREATION OF HOME TEAM ##########################
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
-        self.home_ac, self.home_ac_targ, self.home_q_params, self.home_team_buffer, self.home_critic_buffer\
-                    , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs)  
+        self.home_ac, self.home_ac_targ, self.home_q_params, self.home_team_buffer, self.home_var_counts\
+             = self.create_team("home",home_players, actor_critic, ac_kwargs)  
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
         var_counts = list(count_vars(module) for module in [*self.home_ac.pi, self.home_ac.q1, self.home_ac.q2])
         self.logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
 
         ##### CREATION OF AWAY TEAM #######################
-        self.away_ac, self.away_ac_targ, self.away_q_params, self.away_team_buffer, self.away_critic_buffer\
-                     , self.away_var_counts= self.create_team("away", away_players, actor_critic, ac_kwargs) 
+        self.away_ac, self.away_ac_targ, self.away_q_params, self.away_team_buffer, self.away_var_counts\
+            = self.create_team("away", away_players, actor_critic, ac_kwargs) 
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
         var_counts = list(count_vars(module) for module in [*self.away_ac.pi, self.away_ac.q1, self.away_ac.q2])
@@ -290,8 +293,6 @@ class TD3_team_alg:
         # Set up optimizers for policy and q-function for the away team:
         self.away_pi_optimizer = Adam(self.away_ac.pi.parameters(), lr=pi_lr)
         self.away_q_optimizer = Adam(self.away_q_params, lr=q_lr)
-        
-        
 
     def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs):
         # Create actor-critic module and target networks for each team:
@@ -323,20 +324,36 @@ class TD3_team_alg:
         return [self.home_ac.compute_loss_pi(data_home),
                 self.away_ac.compute_loss_pi(data_away)]
     
-    def update(self, data_home_team, data_home_q, data_away_team, data_away_q, timer):
+    def update(self, data_home_team, data_away_team, timer):
         polyak = self.training_param_dict['polyak']
-        self.home_ac.update(data_home_team, data_home_q,self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
+        policy_delay = self.training_param_dict['policy_delay']
+        self.home_ac.update(data_home_team,self.home_q_optimizer, self.home_pi_optimizer, self.home_ac_targ,\
                             timer, self.logger,self.home_q_params, polyak)
 
-        self.away_ac.update(data_away_team, data_away_q, self.away_q_optimizer, self.away_pi_optimizer, self.away_ac_targ,\
-                            timer, self.logger, self.away_q_params, polyak)
+        self.away_ac.update(data_away_team,self.away_q_optimizer, self.away_pi_optimizer, self.away_ac_targ,\
+                            timer, self.logger,self.away_q_params, polyak)
+
+        if (timer % policy_delay) == 0 :
+            # Finally, update target networks by polyak averaging.
+            with torch.no_grad():
+                # update home policy:                
+                for p, p_targ in zip(self.home_ac.parameters(), self.home_ac_targ.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.copy_((1-polyak) * p.data + polyak * p_targ.data)
+
+                # update away policy:
+                for p, p_targ in zip(self.away_ac.parameters(), self.away_ac_targ.parameters()):
+                    # NB: We use an in-place operations "mul_", "add_" to update target
+                    # params, as opposed to "mul" and "add", which would make new tensors.
+                    p_targ.data.copy_((1-polyak) * p.data + polyak * p_targ.data)
 
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
         critic_using = not (o.shape[0] == self.training_param_dict["batch_size"])
         actions = torch.cat([self.home_ac.act(torch.as_tensor(o[:self.home], dtype=torch.float32), critic_using),\
-                  self.away_ac.act(torch.as_tensor(o[self.home:], dtype=torch.float32), critic_using)]).numpy()
+                  self.away_ac.act(torch.as_tensor(o[self.home:], dtype=torch.float32))]).numpy()
         actions += noise_scale*np.random.randn(self.act_dim)
         return np.clip(actions, -act_lim, act_lim)
     
@@ -365,12 +382,13 @@ class TD3_team_alg:
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
 
         for t in range(total_steps):
-            print(t)
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
             if t > start_steps:
-                a = self.get_action(o, self.act_noise)
+                with torch.no_grad():
+                    a = self.get_action(o[np.newaxis, :], self.act_noise)
+                    a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
 
@@ -386,9 +404,9 @@ class TD3_team_alg:
                 o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
 
             # store in buffer: 
-            for i, home_buf in enumerate(self.home_team_buffer):
-                home_buf.store(o[i], a[i], r[i], o2[i], d)
-                self.home_critic_buffer.store(o[i], a[i], r[i], o2[i], d)
+            
+            self.home.store(o[:self.home], a[:self.home], r[:self.home], o2[:self.home], d)
+            self.home_critic_buffer.store(o[i], a[i], r[i], o2[i], d)
             off_set = self.home
             for j, away_buf in enumerate(self.away_team_buffer):
                 i = j+ off_set
@@ -433,8 +451,47 @@ class TD3_team_alg:
                 self.logger.log_tabular('Time', time.time()-start_time)
                 self.logger.dump_tabular()
 
+
+class soccer2vs2(TD3_team_alg_freePlay):
+    def __init__(self, env_fn, home_players, away_players, actor_critic, ac_kwargs,\
+                 seed, steps_per_epoch, epochs, replay_size, gamma, polyak, pi_lr, q_lr,\
+                 batch_size, start_steps, update_after, update_every, act_noise, target_noise,\
+                noise_clip, policy_delay, num_test_episodes, max_ep_len, logger_kwargs, save_freq, test_fn, team_path) -> None:
+        assert team_path is not None
+        self.team_path = team_path
+
+        super().__init__(env_fn, home_players, away_players, actor_critic, ac_kwargs, seed,\
+                        steps_per_epoch, epochs, replay_size, gamma, polyak,pi_lr, q_lr, batch_size, start_steps, update_after,\
+                        update_every, act_noise, target_noise, noise_clip,policy_delay, num_test_episodes, max_ep_len,\
+                        logger_kwargs=logger_kwargs, save_freq=save_freq, test_fn=test_fn)
+    
+
+    def generate_teams(self, home_players, away_players, actor_critic, pi_lr, q_lr, ac_kwargs):
+        #### CREATION OF HOME TEAM ##########################
+        # Create actor-critic module and target networks for each team:
+        # create actor critic agent for home team
+        self.home_ac, self.home_ac_targ, self.home_q_params, self.home_team_buffer, self.home_var_counts\
+             = self.create_team("home",home_players, actor_critic, ac_kwargs)  
+
+        # Count variables (protip: try to get a feel for how different size networks behave!)
+        var_counts = list(count_vars(module) for module in [*self.home_ac.pi, self.home_ac.q1, self.home_ac.q2])
+        self.logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
+
+        ##### CREATION OF AWAY TEAM #######################
+        self.away_ac, self.away_ac_targ, self.away_q_params, self.away_team_buffer, self.away_var_counts\
+            = self.load_team(self.team_path)
+
+        # Set up optimizers for policy and q-function for the home team
+        self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
+        self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
+
+        # Set up optimizers for policy and q-function for the away team:
+        self.away_pi_optimizer = Adam(self.away_ac.pi.parameters(), lr=pi_lr)
+        self.away_q_optimizer = Adam(self.away_q_params, lr=q_lr)
+        
+
                 
-class soccer2vs0(TD3_team_alg):
+class soccer2vs0(TD3_team_alg_freePlay):
     def __init__(self, env_fn,home_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=10000, epochs=2000, replay_size=int(2e6), gamma=0.99, 
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=50000, 
@@ -515,10 +572,6 @@ class soccer2vs0(TD3_team_alg):
                     # params, as opposed to "mul" and "add", which would make new tensors.
                     p_targ.data.copy_((1-polyak) * p.data + polyak * p_targ.data)
                 
-
-                
-
-        
         
 
     def get_action(self, o, noise_scale):
