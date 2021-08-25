@@ -544,7 +544,7 @@ class soccer2vs0(TD3_team_alg):
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
-                mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestamp.observation]))
+                mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len) and (self.test_env.timestep.reward[0] > 0):
