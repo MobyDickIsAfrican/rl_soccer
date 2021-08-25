@@ -535,6 +535,7 @@ class soccer2vs0(TD3_team_alg):
 
     def test_agent(self):
         succes_rate = 0
+        mean_n_pass = 0
         num_test_episodes = self.training_param_dict["num_test_episodes"]
         max_ep_len = self.training_param_dict["max_ep_len"]
         for j in range(num_test_episodes):
@@ -543,6 +544,7 @@ class soccer2vs0(TD3_team_alg):
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
+                mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestamp.observation]))
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len) and (self.test_env.timestep.reward[0] > 0):
@@ -607,11 +609,12 @@ class soccer2vs0(TD3_team_alg):
 
                 # Test the performance of the deterministic version of the agent.
                 with torch.no_grad():
-                    succes_rate = self.test_agent()
+                    succes_rate, mean_n_pass = self.test_agent()
                     
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
                 self.logger.log_tabular('Success rate', succes_rate)
+                self.logger.log_tabular("passAverage", mean_n_pass)
                 self.logger.log_tabular('EpRet', with_min_and_max=True)
                 self.logger.log_tabular('TestEpRet', with_min_and_max=True)
                 self.logger.log_tabular('EpLen', average_only=True)
