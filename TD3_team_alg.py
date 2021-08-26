@@ -587,6 +587,7 @@ class soccer2vs0(TD3_team_alg_freePlay):
         mean_n_pass = 0
         num_test_episodes = self.training_param_dict["num_test_episodes"]
         max_ep_len = self.training_param_dict["max_ep_len"]
+        vel_to_ball = [[] for j in range(self.home)]
         for j in range(num_test_episodes):
             o, d, ep_ret, ep_len = self.test_env.reset(), False, np.array([0]*(self.home), dtype='float32'), 0
             while not(d or (ep_len == max_ep_len)):
@@ -594,6 +595,7 @@ class soccer2vs0(TD3_team_alg_freePlay):
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
                 mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
+                [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.num_players)]
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len) and (self.test_env.timestep.reward[0] > 0):
@@ -601,6 +603,12 @@ class soccer2vs0(TD3_team_alg_freePlay):
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
         mean_n_pass /= num_test_episodes
+
+        ep_ret_dict = {}
+        for i in range(self.home):
+            ep_ret_dict[f"TestEpStatsVelToBall_P{i + 1}"] = np.mean(vel_to_ball[i])
+
+        self.logger.store(**ep_ret_dict, TestEpLen=ep_len)
 
         return succes_rate, mean_n_pass
 
@@ -613,6 +621,8 @@ class soccer2vs0(TD3_team_alg_freePlay):
         start_steps = self.training_param_dict["start_steps"]
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
+        best_succes_rate = False
+        pkl_saved=False
 
         # we start the environment: 
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
@@ -655,12 +665,18 @@ class soccer2vs0(TD3_team_alg_freePlay):
             if (t+1)% steps_per_epoch == 0:
                 epoch = (t+1) // steps_per_epoch
 
-                if (epoch% save_freq ==0) or (epoch==epochs):
-                    self.logger.save_state({'env': self.env}, None)
-
                 # Test the performance of the deterministic version of the agent.
                 with torch.no_grad():
                     succes_rate, mean_n_pass = self.test_agent()
+
+                if ((epoch % save_freq == 0) or (epoch == epochs)) and (succes_rate >= best_succes_rate):
+                    self.logger.save_state({'env': self.env}, None, not(pkl_saved))
+                    if not pkl_saved:
+                        pkl_saved = True
+                        best_succes_rate = succes_rate
+
+                if (epoch% save_freq ==0) or (epoch==epochs) and succes_rate>=0.8:
+                    self.logger.save_state({'env': self.env}, t)
                     
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
