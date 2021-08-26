@@ -550,7 +550,8 @@ class soccer2vs0(TD3_team_alg_freePlay):
         self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
 
-
+        #setup saver:
+        self.logger.setup_pytorch_saver(self.home_ac)
 
     def compute_q_loss(self, q_home_data):
         return self.home_ac.compute_q_loss(q_home_data, self.home_ac_targ, self.loss_param_dict)
