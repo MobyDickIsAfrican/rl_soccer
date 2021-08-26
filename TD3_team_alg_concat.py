@@ -544,7 +544,7 @@ class soccer2vs0(TD3_team_alg):
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
                 mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
-                [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.num_players)]
+                [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len) and (self.test_env.timestep.reward[0] > 0):
