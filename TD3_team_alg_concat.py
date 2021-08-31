@@ -234,7 +234,7 @@ class TD3_team_alg:
         polyak=0.995, pi_lr=4e-3, q_lr=4e-3, batch_size=100, start_steps=10000, 
         update_after=1000, update_every=50, act_noise=0.1, target_noise=0.2, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=10, max_ep_len=1000, 
-        logger_kwargs=dict(), save_freq=1) -> None: 
+        logger_kwargs=dict(), save_freq=10) -> None: 
 
         self.home = home_players
         self.away = away_players
@@ -564,14 +564,15 @@ class soccer2vs0(TD3_team_alg):
     def train_agents(self):
         
         epochs = self.training_param_dict["epochs"]
+        save_epochs = epochs - int(epochs*0.2)
         steps_per_epoch = self.training_param_dict["steps_per_epoch"]
         save_freq = self.training_param_dict["save_freq"]
         total_steps = steps_per_epoch * epochs
         start_steps = self.training_param_dict["start_steps"]
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
-        best_succes_rate = 0
-        pkl_saved = False
+        best_succes_rate = False
+        pkl_saved=False
 
         # we start the environment: 
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
@@ -618,13 +619,13 @@ class soccer2vs0(TD3_team_alg):
                 with torch.no_grad():
                     succes_rate, mean_n_pass = self.test_agent()
 
-                if ((epoch % save_freq == 0) or (epoch == epochs)) and (succes_rate >= best_succes_rate):
+                if ((epoch % save_freq == 0) or (epoch > save_epochs)) and (succes_rate >= best_succes_rate):
                     self.logger.save_state({'env': self.env}, None, not(pkl_saved))
                     if not pkl_saved:
                         pkl_saved = True
                         best_succes_rate = succes_rate
 
-                if (epoch% save_freq ==0) or (epoch==epochs) and succes_rate>=0.8:
+                if (epoch% save_freq ==0) or (epoch>save_epochs) and succes_rate>=0.8:
                     self.logger.save_state({'env': self.env}, t)
                     
                 # Log info about epoch
@@ -641,5 +642,5 @@ class soccer2vs0(TD3_team_alg):
                 self.logger.log_tabular('LossPi', average_only=True)
                 self.logger.log_tabular('LossQ', average_only=True)
                 self.logger.log_tabular('Time', time.time()-start_time)
-                self.logger.dump_tabular()
+                self.logger.dump_tabular()     
             
