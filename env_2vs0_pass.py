@@ -66,7 +66,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		lets us know if the ball has been obtained by the same or different team. 
 		Return: ball object 
 		'''
-		return self.dmcenv.ball
+		return self.dmcenv.task.ball
 
 	def ball_intercepted(self):
 		'''
@@ -75,7 +75,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		Return: bool
 		'''
 		ball = self.get_ball(self)
-		return ball.intercepted()
+		return ball.intercepted
 
 	def ball_repossessed(self):
 		'''
@@ -84,7 +84,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		Return: bool 
 		'''
 		ball = self.get_ball()
-		return ball.repossessed()
+		return ball.repossessed
 
 
 	def last_hit(self):
@@ -92,7 +92,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		Function that returns the player that hitted the ball last time. 
 		Returns: Player named tuple
 		'''
-		return self.get_ball().last_hit()
+		return self.get_ball().last_hit
 
 
 	def getObservation(self):
@@ -215,6 +215,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			delta_ball_d = ball_dist 
 			delta_teammate_ball_d = ball_teammate_dist
 			delta_ball_op_goal_dist = ball_op_goal_dist
+			
 			kickable_reward = beta/3- np.max(delta_teammate_ball_d) - np.min(delta_ball_op_goal_dist)
 			kickable_reward_pass = beta
 			still_is_kickable_reward = 1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)

@@ -66,7 +66,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		lets us know if the ball has been obtained by the same or different team. 
 		Return: ball object 
 		'''
-		return self.dmcenv.ball
+		return self.dmcenv.task.ball
 
 	def ball_intercepted(self):
 		'''
@@ -74,8 +74,8 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		intercepted by another team, and false otherwise.
 		Return: bool
 		'''
-		ball = self.get_ball(self)
-		return ball.intercepted()
+		ball = self.get_ball
+		return ball.intercepted
 
 	def ball_repossessed(self):
 		'''
