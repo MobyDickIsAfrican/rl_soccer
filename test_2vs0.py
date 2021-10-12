@@ -99,11 +99,15 @@ def main(model_path, num):
             goal_home_or_away = detect_goal_home_away(env.dmcenv.task.arena.detected_goal())
             ball_out = any([isinstance(instance, SoccerBall) for instance in env.dmcenv.task.arena.detected_off_court()] )
 
-            step_position = [tuple(env.dmcenv.physics.bind(env.dmcenv.task.players[i].walker.root_body).xpos[:2])
+            step_position_x = [env.dmcenv._physics_proxy.bind(env.dmcenv.task.players[i].walker.root_body).xpos[0]
+                               for i in range(2)]
+            step_position_y = [env.dmcenv._physics_proxy.bind(env.dmcenv.task.players[i].walker.root_body).xpos[1]
                                for i in range(2)]
 
 
-            step_ball_position = tuple(np.array(env.dmcenv.physics.bind(env.dmcenv.task.ball.root_body).xpos[:2]))
+            step_ball_pos_x = env.dmcenv._physics_proxy.bind(env.dmcenv.task.ball.root_body).xpos[0]
+            step_ball_pos_y = env.dmcenv._physics_proxy.bind(env.dmcenv.task.ball.root_body).xpos[1]
+
             step_pass = [player["stats_i_received_pass"][0] for player \
                                         in env.timestep.observation]
             passes1.append(step_pass[0])
@@ -115,7 +119,8 @@ def main(model_path, num):
             # log the information: 
             
             instance_logger.log_tabular("hit", step_hit)
-            instance_logger.log_tabular("ball_position", step_ball_position)
+            instance_logger.log_tabular("ball_position_x", step_ball_pos_x)
+            instance_logger.log_tabular("ball_position_y", step_ball_pos_y)
             instance_logger.log_tabular("repossessed", step_repossesed)
             instance_logger.log_tabular("2_hit_dist", step_dist)
             instance_logger.log_tabular("interception", step_interception)
@@ -124,8 +129,11 @@ def main(model_path, num):
                                                 enumerate(step_vel)]
             [instance_logger.log_tabular(f"received_pass_{i}", passing)\
                     for i, passing in enumerate(step_pass)]
-            [instance_logger.log_tabular(f"player_{i}_pos", pos) for i, pos 
-                                                in enumerate(step_position)]
+            [instance_logger.log_tabular(f"player_{i}_pos_x", pos) for i, pos 
+                                                in enumerate(step_position_x)]
+            [instance_logger.log_tabular(f"player_{i}_pos_y", pos) for i, pos 
+                                                in enumerate(step_position_y)]
+
             instance_logger.log_tabular("ball_out", ball_out)
             instance_logger.log_tabular("hit_H_A", hit_home_or_away)
             instance_logger.log_tabular("goal_H_A", goal_home_or_away)
