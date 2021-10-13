@@ -171,19 +171,10 @@ def main(model_path, num):
 
         run_logger.log_tabular("steps", l)
         run_logger.log_tabular("success", done)
+        run_logger.log_tabular("pitch_size", env.dmcenv.task.arena._size)
         [run_logger.log_tabular(f"vel_player_{i}") for i in range(2)]
         run_logger.dump_tabular()
 
-
-
-
-        
-            
-        if (j + 1) % 10 == 0: 
-            total_pass = np.array(passes1)[-10:]+ np.array(passes2)[-10:]
-            print(j + 1, s, f, np.mean(total_pass), np.max(total_pass), np.min(total_pass))
-
-    return s, ls, vel1, vel2, passes1, passes2
 
 
 if __name__ == "__main__":
@@ -191,9 +182,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, help="Model path.", 
-            default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\Join_pass_env\\2021-08-26_18-10-15_td3_soccer_goal_pass_join_2vs0_0.1\\")
+            default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\\Concat_pass_env\\2021-08-29_00-16-28_td3_soccer_goal_pass_concat_2vs0_0.1\\")
     parser.add_argument("--meta_file", type=str, help="Name of meta file associated to checkpoint to load.",
-    default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\\Join_pass_env\\2021-08-26_18-10-15_td3_soccer_goal_pass_join_2vs0_0.1\\pyt_save\\model2809999.pt")
+    default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\\Concat_pass_env\\2021-08-29_00-16-28_td3_soccer_goal_pass_concat_2vs0_0.1\\pyt_save\\model2809999.pt")
     parser.add_argument("--gpu", type=float, help="Fraction of gpu to use", default=1.0)
     args = parser.parse_args()
 
@@ -215,12 +206,4 @@ if __name__ == "__main__":
 
     else:
     '''
-    s, ls, vel1, vel2, pas1, pas2 = main(model_path,int(ckpoint_name))
-
-    with open('stats.csv', 'a+') as f:
-        writer = csv.writer(f)
-        writer.writerow([os.path.split(os.path.abspath(model_path))[1], str(ckpoint_name), str(s / num_runs), 
-                         str(np.mean(ls)), str(np.std(ls)), str(np.mean(vel1)), str(np.std(vel1)),
-                         str(np.mean(vel2)), str(np.std(vel2)), str(np.mean(pas1)), str(np.std(pas1)), str(np.mean(pas2)), str(np.std(pas2))])
-
-    os.chdir(orig_path)
+    main(model_path,int(ckpoint_name))
