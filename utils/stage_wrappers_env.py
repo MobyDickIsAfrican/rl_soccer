@@ -58,7 +58,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			self.old_ball_op_goal_dist = np.array(self.old_ball_op_dist)
 			self.old_ball_team_goal_dist = np.array(self.old_ball_team_dist)
 			self.old_ball_teammate_dist = np.array(self.old_ball_teammate_dist)
-			self.got_kickable_rew = np.any(ball_pos<self.dist_thresh)
+			self.got_kickable_rew = self.old_ball_dist<self.dist_thresh
 		
 	def get_ball(self):
 		'''
@@ -100,11 +100,11 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			cut_obs = []
 			ball_pos_all = [-o['ball_ego_position'][:, :2] for o in obs]
 			ball_dist_scaled_all = np.array([polar_mod(ball_pos) for ball_pos in ball_pos_all]) / self.max_dist
-			kickable = ball_dist_scaled_all < self.dist_thresh
+			kickable = np.abs(ball_dist_scaled_all) < self.dist_thresh
 			kickable_ever = self.got_kickable_rew
 
 			ctr = 0
-			for o in obs:
+			for i, o in enumerate(obs):
 				ball_pos = ball_pos_all[ctr]
 				ball_vel = o["ball_ego_linear_velocity"][:, :2]
 				op_goal_pos = -o["opponent_goal_mid"][:, :2]
@@ -134,7 +134,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 											"ball_team_goal_dist_scaled": np.array([(polar_mod(ball_team_goal_pos) / self.max_dist)]),
 											"ball_team_goal_angle_scaled": np.array([polar_ang(ball_team_goal_pos) / (2 * np.pi)]),
 											"ball_goal_vel": np.array([sigmoid(ball_goal_vel)]),
-											"kickable_ever": np.float32(kickable_ever)}))
+											"kickable_ever": np.float32(kickable_ever[i])}))
 
 				for player in range(self.team_2):
 					opponent_pos = -o[f"opponent_{player}_ego_position"][:, :2]
@@ -193,17 +193,17 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		
 
 		# indicates if the ball is in a kickable position for any of both players
-		kickable = np.any(ball_dist < self.dist_thresh)
+		kickable = ball_dist < self.dist_thresh
 
 		# rewards of each player in the game 
-		alpha = (int(self.time_limit / self.control_timestep) + 1)/3
+		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
 		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
 		if not np.any(rewards):
 			# there was not a goal: 
-			kickable_now_first = (kickable * (1 - self.got_kickable_rew))
+			kickable_now_first = kickable * (1 - self.got_kickable_rew)
 			# we set the distance of the goalpost and the ball. 
 			delta_D = ((self.old_ball_op_goal_dist - ball_op_goal_dist) \
 						- (self.old_ball_team_goal_dist - ball_team_goal_dist))
@@ -212,12 +212,13 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			delta_ball_op_goal_dist = ball_op_goal_dist - self.old_ball_op_goal_dist
 			
 			kickable_reward = beta
-			still_is_kickable_reward =  1.2*delta_D - np.max(delta_teammate_ball_d) - np.min(delta_ball_d)
+			still_is_kickable_reward =  (1.2*delta_D - np.min(delta_ball_d))[np.newaxis, ...]
 			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1
 
-			rewards += kickable_now_first*kickable_reward \
-						+ (1- self.got_kickable_rew)*kickable*still_is_kickable_reward \
+			reward = kickable_now_first*kickable_reward \
+						+ self.got_kickable_rew*kickable*still_is_kickable_reward \
 						+ (1-kickable)*other_scenario_reward
+			rewards += np.squeeze(reward, 0)
 		
 		else: 
 			rewards *= alpha
@@ -226,7 +227,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		self.old_ball_op_dist = ball_op_goal_dist
 		self.old_ball_team_goal_dist = ball_team_goal_dist
 		self.old_ball_teammate_dist = ball_teammate_dist
-		self.got_kickable_rew = kickable | self.got_kickable_rew
+		self.got_kickable_rew = kickable #| self.got_kickable_rew
 
 		return rewards.tolist()
 
