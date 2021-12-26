@@ -601,8 +601,6 @@ class soccer2vs0(TD3_team_alg_freePlay):
                 ep_len += 1
             if (ep_len < max_ep_len) and (self.test_env.dmcenv._task.arena.detected_goal() is not None):
                 if self.test_env.dmcenv._task.arena.detected_goal().value:
-                    print(self.test_env.dmcenv._task.arena.detected_goal().value)
-                    print(type(self.test_env.dmcenv._task.arena.detected_goal().value))
                     succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
