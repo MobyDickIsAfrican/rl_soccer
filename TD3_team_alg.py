@@ -599,8 +599,10 @@ class soccer2vs0(TD3_team_alg_freePlay):
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
                 ep_len += 1
-            if (ep_len < max_ep_len) and (self.test_env.dmcenv.arena.detected_goal() is not None):
-                if self.test_env.dmcenv.arena.detected_goal().value:
+            if (ep_len < max_ep_len) and (self.test_env.dmcenv._task.arena.detected_goal() is not None):
+                if self.test_env.dmcenv._task.arena.detected_goal().value:
+                    print(self.test_env.dmcenv._task.arena.detected_goal().value)
+                    print(type(self.test_env.dmcenv._task.arena.detected_goal().value))
                    succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
