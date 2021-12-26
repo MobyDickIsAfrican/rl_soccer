@@ -2,6 +2,7 @@ import argparse
 from spinup.utils.logx import EpochLogger
 from math import ceil
 from TD3_team_alg import soccer2vs0
+import datetime
 from env_2vs0_pass import stage_soccerTraining_pass
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', '-s', type=int, default=0)
@@ -14,7 +15,7 @@ args = parser.parse_args()
 args = parser.parse_args()
 
 from spinup.utils.run_utils import setup_logger_kwargs
-logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_pass_join_2vs0_{args.control_timestep}", data_dir="roberto/Proyecto/2vs0", datestamp=True)
+logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_pass_join_2vs0_{args.control_timestep}_{datetime.datetime.now().strftime('%H_%M_%S')}", data_dir="roberto/Proyecto/2vs0", datestamp=True)
 env_creator = lambda :   stage_soccerTraining_pass(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep,  "observables": "all"}) 
 env_test_creator = lambda : stage_soccerTraining_pass(team_1=2, team_2=0, task_kwargs={"time_limit": args.time_limit, "disable_jump": True, 
