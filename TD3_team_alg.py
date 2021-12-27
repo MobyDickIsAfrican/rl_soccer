@@ -584,7 +584,7 @@ class soccer2vs0(TD3_team_alg_freePlay):
 
 
     def test_agent(self):
-        succes_rate = 0.8
+        succes_rate = 0
         mean_n_pass = 0
         num_test_episodes = self.training_param_dict["num_test_episodes"]
         max_ep_len = self.training_param_dict["max_ep_len"]
