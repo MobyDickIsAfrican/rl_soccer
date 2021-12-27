@@ -58,7 +58,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			self.old_ball_op_goal_dist = np.array(self.old_ball_op_dist)
 			self.old_ball_team_goal_dist = np.array(self.old_ball_team_dist)
 			self.old_ball_teammate_dist = np.array(self.old_ball_teammate_dist)
-			self.got_kickable_rew = self.old_ball_dist<self.dist_thresh
+			self.got_kickable_rew = np.abs(self.old_ball_dist)<self.dist_thresh
 		
 	def get_ball(self):
 		'''
@@ -199,7 +199,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
-		beta = alpha/5
+		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
@@ -216,7 +216,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			delta_teammate_ball_d = ball_teammate_dist
 			delta_ball_op_goal_dist = ball_op_goal_dist
 			
-			kickable_reward = beta/3- np.min(delta_teammate_ball_d) - np.min(delta_ball_op_goal_dist)
+			kickable_reward = beta/3- np.min(delta_ball_d) - np.min(delta_ball_op_goal_dist)
 			kickable_reward_pass = beta
 			still_is_kickable_reward = 1.2*delta_D  - np.min(delta_ball_d)
 			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1

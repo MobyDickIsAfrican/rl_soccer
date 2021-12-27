@@ -58,7 +58,7 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 			self.old_ball_op_goal_dist = np.array(self.old_ball_op_dist)
 			self.old_ball_team_goal_dist = np.array(self.old_ball_team_dist)
 			self.old_ball_teammate_dist = np.array(self.old_ball_teammate_dist)
-			self.got_kickable_rew = self.old_ball_dist<self.dist_thresh
+			self.got_kickable_rew = np.abs(self.old_ball_dist)<self.dist_thresh
 		
 	def get_ball(self):
 		'''
@@ -193,10 +193,10 @@ class stage_soccerTraining(wrap.DmGoalWrapper):
 		
 
 		# indicates if the ball is in a kickable position for any of both players
-		kickable = ball_dist < self.dist_thresh
+		kickable = np.abs(ball_dist) < self.dist_thresh
 
 		# rewards of each player in the game 
-		alpha = (int(self.time_limit / self.control_timestep) + 1)/3
+		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
 		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 

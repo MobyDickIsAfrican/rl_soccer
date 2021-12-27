@@ -173,8 +173,8 @@ class MLPAC_4_team(nn.Module):
             backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
-        loss_q1 = torch.mean(torch.square((q1 - backup)))
-        loss_q2 = torch.mean(torch.square((q2 - backup)))
+        loss_q1 = torch.sum(torch.mean(torch.square((q1 - backup)), 0))
+        loss_q2 = torch.sum(torch.mean(torch.square((q2 - backup)), 0))
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
