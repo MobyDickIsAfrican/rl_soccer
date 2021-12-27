@@ -179,7 +179,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		ball_teammate_pos = [-ball_pos[i] - obs[i]["teammate_0_ego_position"][:,:2]
 										for i in range(self.num_players)]
         # we find out if any of the players got the ball:
-		received_pass = np.any([o['stats_i_received_pass'] for o in obs])
+		received_pass = np.squeeze(np.array([o['stats_i_received_pass'] for o in obs]))
 		
 		
 
@@ -199,7 +199,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
-		beta = alpha/3
+		beta = alpha/5
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
