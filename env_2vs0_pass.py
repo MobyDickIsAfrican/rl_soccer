@@ -195,7 +195,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		
 
 		# indicates if the ball is in a kickable position for any of both players
-		kickable = ball_dist < self.dist_thresh
+		kickable = np.abs(ball_dist) < self.dist_thresh
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
