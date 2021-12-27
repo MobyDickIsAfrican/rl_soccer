@@ -198,8 +198,8 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		kickable = np.abs(ball_dist) < self.dist_thresh
 
 		# rewards of each player in the game 
-		alpha = (int(self.time_limit / self.control_timestep) + 1)/10
-		beta = alpha/10
+		alpha = (int(self.time_limit / self.control_timestep) + 1)/3
+		beta = 3*alpha/300
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
