@@ -600,7 +600,7 @@ class soccer2vs0(TD3_team_alg_freePlay):
                 ep_ret += r
                 ep_len += 1
             if (ep_len < max_ep_len):
-                if np.array(self.test_env.timestep["reward"])>0:
+                if np.array(self.test_env.timestep.reward)>0:
                     succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
