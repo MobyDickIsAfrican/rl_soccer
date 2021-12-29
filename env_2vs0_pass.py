@@ -216,10 +216,10 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			delta_teammate_ball_d = ball_teammate_dist
 			delta_ball_op_goal_dist = ball_op_goal_dist
 			
-			kickable_reward = beta/3- np.min(delta_ball_d) - np.min(delta_ball_op_goal_dist)
-			kickable_reward_pass = beta
-			still_is_kickable_reward = 1.2*delta_D  - np.min(delta_ball_d)
-			other_scenario_reward	= -np.min(delta_ball_d) -np.min(delta_ball_op_goal_dist) -0.1
+			kickable_reward = beta -delta_ball_d - delta_ball_op_goal_dist
+			kickable_reward_pass = beta +1.2*delta_D
+			still_is_kickable_reward = beta/3 + 1.2*delta_D  -delta_ball_d
+			other_scenario_reward	= -delta_ball_d -delta_ball_op_goal_dist -0.1
 
 			rewards += kickable_pass*kickable_reward_pass\
 						+kickable_no_pass*kickable_reward \
