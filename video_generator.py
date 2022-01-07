@@ -9,11 +9,12 @@ import os
 import datetime
 
 # FIXME HACER 500 VIDEOS CON ARCHIVO DE TEXTO.
-path = "C:\\Users\\rocho\\RL_proyect\\results\\resultados\\exp7\\pyt_save\\model2999999.pt"
-os.mkdir(f"C:\\Users\\rocho\\RL_proyect\\passing_res_28_12_21_{datetime.datetime.now().strftime('%H_%M_%S')}")
-os.chdir(f"C:\\Users\\rocho\\RL_proyect\\passing_res_28_12_21_{datetime.datetime.now().strftime('%H_%M_%S')}")
+exp_name = "exp8"
+path = "D:\\rl_soccer\\results\\resultados\\exp8\\pyt_save\\model2639999.pt"
+os.mkdir(f"D:\\rl_soccer\\passing_res_{exp_name}_{datetime.datetime.now().strftime('%m_%d_%Y_%H_%M_%S')}")
+os.chdir(f"D:\\rl_soccer\\passing_res_{exp_name}_{datetime.datetime.now().strftime('%m_%d_%Y_%H_%M_%S')}")
 f = open("pass_counting.txt", "a")
-for run in range(20):
+for run in range(50):
 	pass_n = 0
 	model = torch.load(path)
 	max_ep_len = ceil(30 / 0.1)
