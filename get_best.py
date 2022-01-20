@@ -29,4 +29,4 @@ if __name__ == "__main__":
     model_path = args.model_path
     success_thres = args.success_thres
     pass_thres = args.pass_thres
-    get_best_runs(model_path, success_thres, pass_thres)
+    get_best_runs(success_thres, pass_thres, model_path)
