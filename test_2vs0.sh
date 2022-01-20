@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate roberto
+conda activate roberto388
 for d in $(find "/media/amtc/ab170e70-f9d7-4d20-a751-0c11c1ac74881/roberto/resultados_2vs0/" -mindepth 1 -maxdepth 1 -type d ); 
 do
     echo $d
