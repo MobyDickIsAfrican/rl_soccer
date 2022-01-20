@@ -191,7 +191,7 @@ if __name__ == "__main__":
 
     model_path = args.model_path
     orig_path = os.getcwd()
-    os.chdir(model_path)
+    
 
     ckpoint_name = os.path.splitext(os.path.split(args.meta_file)[-1])[0][5:] 
     print(ckpoint_name)
