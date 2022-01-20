@@ -43,8 +43,9 @@ def detect_goal_home_away(team_object):
         return -1
 
 def main(model_path, num):
-    instance_logger_kwargs = setup_logger_kwargs("2vs0_instance_test", data_dir=model_path,datestamp=True)
-    run_logger_kwargs = setup_logger_kwargs("2vs0_test_run", data_dir=model_path,datestamp=True)
+    m_name = model_path.split("\\")[-1]
+    instance_logger_kwargs = setup_logger_kwargs(f"{m_name}_instance_test", data_dir=model_path,datestamp=True)
+    run_logger_kwargs = setup_logger_kwargs(f"{m_name}_test_run", data_dir=model_path,datestamp=True)
 
     # logger objects created. 
     run_logger = EpochLogger(**run_logger_kwargs)
