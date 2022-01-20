@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, help="Model path.")
     parser.add_argument("--success_thres", type=float, help="minimum threshold we are expecting from the models")
-    parser.add_argument("--pass_thres", float, help= "The minimum pass rate we are expecting in the model")
+    parser.add_argument("--pass_thres", type=float, help= "The minimum pass rate we are expecting in the model")
     args = parser.parse_args()
     model_path = args.model_path
     success_thres = args.success_thres
