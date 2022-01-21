@@ -42,8 +42,8 @@ def detect_goal_home_away(team_object):
     else:
         return -1
 
-def main(model_path, num):
-    m_name = model_path.split("\\")[-1]
+def main(model_path, num, m_file):
+    m_name = m_file.split("\\")[-1]
     instance_logger_kwargs = setup_logger_kwargs(f"{m_name}_instance_test", data_dir=model_path,datestamp=True)
     run_logger_kwargs = setup_logger_kwargs(f"{m_name}_test_run", data_dir=model_path,datestamp=True)
 
@@ -183,13 +183,14 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, help="Model path.", 
-            default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\\Concat_pass_env\\2021-08-29_00-16-28_td3_soccer_goal_pass_concat_2vs0_0.1\\")
+            default="D:\\rl_soccer\\results\\resultados\\2vs0_final\\2022-01-07_00-02-21_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_02_21\\")
     parser.add_argument("--meta_file", type=str, help="Name of meta file associated to checkpoint to load.",
-    default="C:\\Users\\rocho\\RL_proyect\\results\\2vs0\\Concat_pass_env\\2021-08-29_00-16-28_td3_soccer_goal_pass_concat_2vs0_0.1\\pyt_save\\model2809999.pt")
+    default="D:\\rl_soccer\\results\\resultados\\2vs0_final\\2022-01-07_00-02-21_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_02_21\\pyt_save\\best_models\\model19999.pt")
     parser.add_argument("--gpu", type=float, help="Fraction of gpu to use", default=1.0)
     args = parser.parse_args()
 
     model_path = args.model_path
+    m_path = args.meta_file
     orig_path = os.getcwd()
     print(orig_path)
     os.chdir(model_path)
@@ -208,4 +209,4 @@ if __name__ == "__main__":
 
     else:
     '''
-    main(model_path,int(ckpoint_name))
+    main(model_path,int(ckpoint_name), m_path)
