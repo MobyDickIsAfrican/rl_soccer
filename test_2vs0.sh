@@ -9,7 +9,7 @@ do
     m_path=$d"/pyt_save/best_models"
     for m in $(find $m_path -name '*.pt'); do
         echo "python /home/amtc/roberto/rl_soccer/test_2vs0.py --model_path $d --meta_file $m --gpu 0.15"
-        python /home/amtc/roberto/rl_soccer/test_2vs0.py --model_path $m_path --meta_file $m --gpu 1
+        python /home/amtc/roberto/rl_soccer/test_2vs0.py --model_path $d --meta_file $m --gpu 1
     done
 done
     #fi
