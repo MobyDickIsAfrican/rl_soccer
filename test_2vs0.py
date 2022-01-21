@@ -43,7 +43,7 @@ def detect_goal_home_away(team_object):
         return -1
 
 def main(model_path, num, m_file):
-    m_name = m_file.split("\\")[-1]
+    m_name = m_file.split("/")[-1]
     instance_logger_kwargs = setup_logger_kwargs(f"{m_name}_instance_test", data_dir=model_path,datestamp=True)
     run_logger_kwargs = setup_logger_kwargs(f"{m_name}_test_run", data_dir=model_path,datestamp=True)
 
