@@ -71,7 +71,7 @@ def main(team_1, team_2, model_path, order='home_away'):
 if __name__ == "__main__":
     import pandas as pd
     parser = argparse.ArgumentParser()
-    parser.add_argument(type=str, help="File where agents model_path and num are")
+    parser.add_argument("agents_path",type=str, help="File where agents model_path and num are")
     parser.add_argument("--model_path", type=str, help="path to where the models directories are stored", default="D:\\rl_soccer\\results\\resultados\\T1_2vs0_final")
     parser.add_argument("--team_1_idx", type=int, help="Agent 1 index", default=0)
     parser.add_argument("--team_2_idx", type=int, help="Agent 2 index", default=1)
