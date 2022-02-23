@@ -25,7 +25,7 @@ for (( i=0; i<${#combinations[@]}; i+=(2*$num) )); do
     done
     wait
 done
-
+)
 (
 for (( i=0; i<${#combinations[@]}; i+=(2*$num) )); do 
     for (( j=0; j<(2*$num); j+=2 )); do
