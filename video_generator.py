@@ -57,7 +57,14 @@ def generate_vid(save_path, model_path, model_name):
 	f.close()
 
 
-
+if __name__ == "__main__":
+	path = "D:\\rl_soccer\\results\\resultados\\T1_2vs0_final\\2022-01-07_00-03-58_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_03_58"
+	model_name = "2889999"
+	model= "model"+model_name+".pt"
+	model_path = os.path.join(path, "pyt_save", model)
+	
+	save_path = os.path.join(path, "videos")
+	generate_vid(save_path, model_path, model)
 
 
 
