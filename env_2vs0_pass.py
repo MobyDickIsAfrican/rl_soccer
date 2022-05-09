@@ -167,72 +167,19 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 	def calculate_rewards(self):
 		# we get the observation: 
 		obs = self.timestep.observation
-		# we get the ball position:
-		ball_pos = [-o['ball_ego_position'][:, :2] for o in obs]
-		# we get the position of the ball and the goal post of the opposing team
-		ball_op_goal_pos = [-ball_pos[i] - obs[i]["opponent_goal_mid"][:, :2] 
-												for i in range(self.num_players)]
-		# we get the position of the ball and the goal post of the team
-		ball_team_goal_pos = [-ball_pos[i] - obs[i]["team_goal_mid"][:, :2] 
-											for i in range(self.num_players)]
-		# we get the teammate position with respect to the ball: 
-		ball_teammate_pos = [-ball_pos[i] - obs[i]["teammate_0_ego_position"][:,:2]
-										for i in range(self.num_players)]
         # we find out if any of the players got the ball:
-		received_pass = np.squeeze(np.array([o['stats_i_received_pass_5m'] or o['stats_i_received_pass_5m'] or o['stats_i_received_pass_5m'] for o in obs]))
-		
-		
-
-		# we turn the ball position to polar normalized by the diagonal of the field
-		ball_dist = np.array([wrap.polar_mod(ball_pos[i]) for i in range(self.num_players)]) / self.max_dist
-		# we turn the opposing goal distance to the polar form normalized by the diagonal of the field 
-		ball_op_goal_dist = np.array([wrap.polar_mod(ball_op_goal_pos[i]) for i in range(self.num_players)]) / self.max_dist
-		# we turn the teams goal distance to the polar form, normalized by the diagonal
-		ball_team_goal_dist = np.array([wrap.polar_mod(ball_team_goal_pos[i]) for i in range(self.num_players)]) / self.max_dist
-		# ball teammate distance: 
-		ball_teammate_dist = np.array([wrap.polar_mod(ball_teammate_pos[i])
-															for i in range(self.num_players)])/self.max_dist
-		
-
-		# indicates if the ball is in a kickable position for any of both players
-		kickable = np.abs(ball_dist) < self.dist_thresh
+		gave_pass = np.squeeze(np.array([o['stats_i_received_pass_5m'] or o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in obs]))
+		gave_pass = np.roll(gave_pass, 1)
 
 		# rewards of each player in the game 
 		alpha = (int(self.time_limit / self.control_timestep) + 1)/3
-		beta = 3*alpha/300
+		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 
 		# we check if there was a goal: 
 		if not np.any(rewards):
-			# there was not a goal: 
-			kickable_now_first = (kickable * (1 - self.got_kickable_rew))
-
-			kickable_no_pass = kickable_now_first*(1-received_pass)
-			kickable_pass = kickable_now_first*received_pass
-			# we set the distance of the goalpost and the ball. 
-			delta_D = (-(ball_op_goal_dist) \
-						+ (ball_team_goal_dist))
-			delta_ball_d = ball_dist 
-			delta_teammate_ball_d = ball_teammate_dist
-			delta_ball_op_goal_dist = ball_op_goal_dist
-			
-			kickable_reward = beta -delta_ball_d - delta_ball_op_goal_dist
-			kickable_reward_pass = beta +1.2*delta_D
-			still_is_kickable_reward = beta/3 + 1.2*delta_D  -delta_ball_d
-			other_scenario_reward	= -delta_ball_d -delta_ball_op_goal_dist -0.1
-
-			rewards += kickable_pass*kickable_reward_pass\
-						+kickable_no_pass*kickable_reward \
-						+ self.got_kickable_rew*kickable*still_is_kickable_reward \
-						+ (1-kickable)*other_scenario_reward
-		
+			# there was not a goal
+			rewards += gave_pass*beta -(1-gave_pass)
 		else: 
 			rewards *= alpha
-
-		self.old_ball_dist = ball_dist
-		self.old_ball_op_dist = ball_op_goal_dist
-		self.old_ball_team_goal_dist = ball_team_goal_dist
-		self.old_ball_teammate_dist = ball_teammate_dist
-		self.got_kickable_rew = kickable
-
 		return rewards.tolist()

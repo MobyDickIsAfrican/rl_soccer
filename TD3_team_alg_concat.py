@@ -298,11 +298,14 @@ class TD3_team_alg:
         
         
 
-    def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs):
+    def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs, actor_state_dict=None):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
         polyak = self.training_param_dict['polyak']
         ac = actor_critic(home_or_away, n_players, self.env.observation_space, self.env.action_space, self.loss_param_dict, polyak, **ac_kwargs)
+        if actor_state_dict:
+            for i in range(len(ac.pi)):
+                ac.pi[i] = torch.load(actor_state_dict)
         ac = ac.cuda()
         ac_targ = deepcopy(ac)
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
@@ -442,7 +445,7 @@ class soccer2vs0(TD3_team_alg):
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=50000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
-        logger_kwargs=dict(), save_freq=1, test_fn=None) -> None:
+        logger_kwargs=dict(), save_freq=1, test_fn=None, actor_state_dict=None) -> None:
 
         
         self.home = home_players
@@ -483,7 +486,7 @@ class soccer2vs0(TD3_team_alg):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
         self.home_ac, self.home_ac_targ, self.home_q_params, self.home_critic_buffer\
-                    , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs) 
+                    , self.home_var_counts = self.create_team("home",home_players, actor_critic, ac_kwargs, actor_state_dict) 
 
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
