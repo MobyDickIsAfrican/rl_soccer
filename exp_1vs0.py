@@ -17,9 +17,9 @@ args = parser.parse_args()
 from spinup.utils.run_utils import setup_logger_kwargs
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_pass_concat_2vs0_{args.control_timestep}", data_dir="home/amtc/roberto/Proyecto/1vs0", datestamp=True)
 env_creator = lambda : DmGoalWrapper(1, 0, task_kwargs={'rew_type': 'simple_v2', 'time_limit': 30., 'disable_jump': True, 'dist_thresh': .03, 
-                             'control_timestep': 0.1, 'random_state': 69})
+                             'control_timestep': 0.1, 'random_state': 69,  "observables": "all"})
 env_test_creator = lambda : DmGoalWrapper(1, 0, task_kwargs={'rew_type': 'simple_v2', 'time_limit': 30., 'disable_jump': True, 'dist_thresh': .03, 
-                             'control_timestep': 0.1, 'random_state': 69})
+                             'control_timestep': 0.1, 'random_state': 69,  "observables": "all"})
 T3 = soccer2vs0(env_creator, 1, epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), test_fn=env_test_creator)   
 T3.train_agents()   
 

@@ -13,12 +13,14 @@ parser.add_argument("--time_limit", type=float, default=30.)
 args = parser.parse_args()
 args = parser.parse_args()
 
+
 from spinup.utils.run_utils import setup_logger_kwargs
-##FIXME: Falta relacionar con el diccionario del agente entrenado.
+model_path = "//home//amtc//roberto//Proyecto//1vs0//2022-05-02_11-58-33_td3_soccer_goal_pass_concat_2vs0_0.1//pyt_save//model2999999.pt"
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_orig_concat_2vs0_{args.control_timestep}", data_dir="Proyecto/2vs0", datestamp=True)
 env_creator = lambda :   stage_soccerTraining_pass(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep,  "observables": "all"}) 
 env_test_creator = lambda : stage_soccerTraining_pass(team_1=2, team_2=0, task_kwargs={"time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': 0.1, 'random_state': 69,  "observables": "all"})
-T3 = soccer2vs0(env_creator, 2, epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), test_fn=env_test_creator,  actor_state_dict="model1009999.pt")   
+T3 = soccer2vs0(env_creator, 2, epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), 
+    test_fn=env_test_creator,  actor_state_dict=model_path)   
 T3.train_agents()     

@@ -10,11 +10,11 @@ def convertObservation(spec_obs):
 			return list(spec_obs.values())[0]
 		else:
 			# concatentation
-			numdim = sum([np.int(np.prod(spec_obs[key].shape)) for key in spec_obs])
+			numdim = sum([int(np.prod(spec_obs[key].shape)) for key in spec_obs])
 			space_obs = np.zeros((numdim,))
 			i = 0
 			for key in spec_obs:
-				space_obs[i:i+np.int(np.prod(spec_obs[key].shape))] = spec_obs[key].ravel()
+				space_obs[i:i+int(np.prod(spec_obs[key].shape))] = spec_obs[key].ravel()
 				i += int(np.prod(spec_obs[key].shape))
 			return space_obs
 	else:

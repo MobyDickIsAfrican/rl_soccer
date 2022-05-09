@@ -301,11 +301,15 @@ class TD3_team_alg:
     def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs, actor_state_dict=None):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
+
         polyak = self.training_param_dict['polyak']
         ac = actor_critic(home_or_away, n_players, self.env.observation_space, self.env.action_space, self.loss_param_dict, polyak, **ac_kwargs)
         if actor_state_dict:
+            model_dict = ac.pi[0].state_dict()
+            pretrained_dict = {k: v for k, v in torch.load(actor_state_dict).pi[0].state_dict().items() if k in model_dict and v.shape==model_dict[k].shape}
+            model_dict.update(pretrained_dict)
             for i in range(len(ac.pi)):
-                ac.pi[i] = torch.load(actor_state_dict)
+                ac.pi[i].load_state_dict(model_dict)
         ac = ac.cuda()
         ac_targ = deepcopy(ac)
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
