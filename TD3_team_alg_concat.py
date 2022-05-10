@@ -549,7 +549,7 @@ class soccer2vs0(TD3_team_alg):
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
-                #mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
+                mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
                 ep_len += 1
@@ -557,7 +557,7 @@ class soccer2vs0(TD3_team_alg):
                 succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
-        #mean_n_pass /= num_test_episodes
+        mean_n_pass /= num_test_episodes
 
         ep_ret_dict = {}
         for i in range(self.home):
@@ -565,7 +565,7 @@ class soccer2vs0(TD3_team_alg):
 
         self.logger.store(**ep_ret_dict, TestEpLen=ep_len)
 
-        return succes_rate
+        return succes_rate, mean_n_pass
 
     def train_agents(self):
         
@@ -623,7 +623,7 @@ class soccer2vs0(TD3_team_alg):
 
                 # Test the performance of the deterministic version of the agent.
                 with torch.no_grad():
-                    succes_rate = self.test_agent()
+                    succes_rate, mean_n_pass= self.test_agent()
 
 
                 '''
@@ -640,7 +640,7 @@ class soccer2vs0(TD3_team_alg):
                 # Log info about epoch
                 self.logger.log_tabular('Epoch', epoch)
                 self.logger.log_tabular('Success rate', succes_rate)
-                #self.logger.log_tabular("passAverage", mean_n_pass)
+                self.logger.log_tabular("passAverage", mean_n_pass)
                 self.logger.log_tabular('EpRet', with_min_and_max=True)
                 self.logger.log_tabular('TestEpRet', with_min_and_max=True)
                 self.logger.log_tabular('EpLen', average_only=True)
