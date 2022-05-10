@@ -310,6 +310,8 @@ class TD3_team_alg:
             model_dict.update(pretrained_dict)
             for i in range(len(ac.pi)):
                 ac.pi[i].load_state_dict(model_dict)
+                ac.pi[i].train()
+        ac.train()
         ac = ac.cuda()
         ac_targ = deepcopy(ac)
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
