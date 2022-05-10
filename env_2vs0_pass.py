@@ -168,7 +168,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		# we get the observation: 
 		obs = self.timestep.observation
         # we find out if any of the players got the ball:
-		gave_pass = np.squeeze(np.array([o['stats_i_received_pass_5m'] or o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in obs]))
+		gave_pass = np.squeeze(np.array([o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in obs]))
 		gave_pass = np.roll(gave_pass, 1)
 
 		# rewards of each player in the game 
