@@ -89,8 +89,10 @@ class MLPActor(nn.Module):
     
     def analyze_observation(self, obs):
         obs_prop = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
-        obs_ext = torch.cat([self.extEncoder[i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)], -1)
-        return obs_prop + obs_ext
+        if len(self.extEncoder)>0:
+            obs_ext = torch.cat([self.extEncoder[i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)], -1)
+            obs_prop += obs_ext
+        return obs_prop
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
