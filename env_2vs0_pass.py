@@ -172,7 +172,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		gave_pass = np.roll(gave_pass, 1)
 
 		# rewards of each player in the game 
-		alpha = (int(self.time_limit / self.control_timestep) + 1)/3
+		alpha = (int(self.time_limit / self.control_timestep))
 		beta = alpha/10
 		rewards = np.array(self.timestep.reward)
 

@@ -15,7 +15,8 @@ args = parser.parse_args()
 
 
 from spinup.utils.run_utils import setup_logger_kwargs
-model_path = "//home//amtc//roberto//Proyecto//1vs0//2022-05-02_11-58-33_td3_soccer_goal_pass_concat_2vs0_0.1//pyt_save//model2999999.pt"
+#model_path = "//home//amtc//roberto//Proyecto//1vs0//2022-05-02_11-58-33_td3_soccer_goal_pass_concat_2vs0_0.1//pyt_save//model2999999.pt"
+model_path = "model2939999.pt"
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_orig_concat_2vs0_{args.control_timestep}", data_dir="Proyecto/2vs0", datestamp=True)
 env_creator = lambda :   stage_soccerTraining_pass(team_1=2, team_2=0,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep,  "observables": "all"}) 

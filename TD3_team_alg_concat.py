@@ -52,11 +52,14 @@ class ReplayBuffer:
 
 
 
-def mlp(sizes, activation, output_activation=nn.Identity):
+def mlp(sizes, activation, output_activation=nn.Identity, init=None):
     layers = []
     for j in range(len(sizes)-1):
         act = activation if j < len(sizes)-2 else output_activation
-        layers += [nn.Linear(sizes[j], sizes[j+1]), act()]
+        linear = nn.Linear(sizes[j], sizes[j+1])
+        if init:
+            torch.nn.init.normal_(linear.weight, mean=0, std=1e-4)
+        layers += [linear, act()]
     return nn.Sequential(*layers)
 
 def count_vars(module):
@@ -77,14 +80,17 @@ class MLPActor(nn.Module):
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
         # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i
         # the first list is for propioceptive observations and the second list is for external players
-        self.obs_analyzer = nn.ModuleList([mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
-                            + [mlp([6, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players)] )
+        outputExtDim = 576
+        if n_players>0:
+            outputExtDim = int(576/n_players)
+        self.propEncoder = nn.ModuleList([mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)])
+        self.extEncoder =  nn.ModuleList([mlp([6, 32, outputExtDim], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU, init=True) for _ in range(n_players)] )
         self.act_limit = torch.Tensor(np.array(act_limit)).cpu()
     
     def analyze_observation(self, obs):
-        obs_prop = [self.obs_analyzer[i](obs[:, 2*i:2*(i+1)]) for i in range(9)]
-        obs_ext = [self.obs_analyzer[9 + i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)]
-        return torch.cat(obs_prop + obs_ext, -1)
+        obs_prop = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
+        obs_ext = torch.cat([self.extEncoder[i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)], -1)
+        return obs_prop + obs_ext
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
@@ -126,7 +132,7 @@ class MLPAC_4_team(nn.Module):
     def __init__(self, team, players, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
                 activation=nn.LeakyReLU):
         super().__init__()
-        obs_dim = 64*9 + (players-1)*64
+        obs_dim = 64*9
         act_dim = action_space.shape[0]
         act_limit = action_space.high[0]
         self.polyak = polyak
@@ -138,7 +144,7 @@ class MLPAC_4_team(nn.Module):
                                                          for _ in range(players)])
         
         # build critic: 
-        critic_obs_dim = obs_dim*players
+        critic_obs_dim = 64*(9 + (players-1))*players
         critic_action_dim = act_dim
         self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
         self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players)
