@@ -301,6 +301,7 @@ class TD3_team_alg:
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
 
         # Set up optimizers for policy and q-function for the away team:
+    
         self.away_pi_optimizer = Adam(self.away_ac.pi.parameters(), lr=pi_lr)
         self.away_q_optimizer = Adam(self.away_q_params, lr=q_lr)
         
@@ -316,9 +317,15 @@ class TD3_team_alg:
             model_dict = ac.pi[0].state_dict()
             pretrained_dict = {k: v for k, v in torch.load(actor_state_dict).pi[0].state_dict().items() if k in model_dict and v.shape==model_dict[k].shape}
             model_dict.update(pretrained_dict)
+            
+
             for i in range(len(ac.pi)):
                 ac.pi[i].load_state_dict(model_dict)
                 ac.pi[i].train()
+                for k, v in ac.pi[i].named_parameters():
+                    if 'propEncoder' in k:
+                        v.requires_grad=False
+            
         ac.train()
         ac = ac.cuda()
         ac_targ = deepcopy(ac)
@@ -508,7 +515,20 @@ class soccer2vs0(TD3_team_alg):
         self.logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
 
         # Set up optimizers for policy and q-function for the home team
-        self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
+        if actor_state_dict:
+            pi_parameters = list(self.home_ac.pi.named_parameters())
+            pi_trained_params, pi_train_now_params = list(), list()
+            for name, parameter in pi_parameters:
+                if 'extEncoder' in name:
+                    pi_train_now_params.append(parameter)
+                else: 
+                    pi_trained_params.append(parameter)
+            self.home_pi_optimizer = Adam([{'params': pi_train_now_params}, {'params': pi_trained_params, 'lr':pi_lr*1e-1}], lr=pi_lr)
+            
+        else:
+            self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
+           
+        
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
 
         #setup saver:
