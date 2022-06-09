@@ -140,6 +140,8 @@ class MLPAC_4_team(nn.Module):
         self.polyak = polyak
         self.loss_dict = loss_dict
         self.team = team
+        self.total_delay = 0
+        self.actual_delay = 0
 
         # build policy for each player in team
         self.pi = nn.ModuleList([MLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit, players-1)\
@@ -219,21 +221,25 @@ class MLPAC_4_team(nn.Module):
                 p.requires_grad = False
 
             # set gradiente to zero:
-            pi_optim.zero_grad()
-            # calculate loss: 
-            loss_pi = self.compute_loss_pi(buffer)
+            if self.actual_delay >= 2*self.total_delay:
+                pi_optim.zero_grad()
+                # calculate loss: 
+                loss_pi = self.compute_loss_pi(buffer)
 
-            #calculate backward grads
-            loss_pi.backward()
-            # update weights:
-            pi_optim.step()
+                #calculate backward grads
+                loss_pi.backward()
+                # update weights:
+                pi_optim.step()
+                # Record things
+                logger.store(team=self.team, LossPi=loss_pi.item()) 
+            else:
+                logger.store(team=self.team, LossPi=0) 
 
             # unfreeze critics: 
             for p in q_param:
                 p.requieres_grad = True
             
-            # Record things
-            logger.store(team=self.team, LossPi=loss_pi.item()) 
+            
 
             
 class TD3_team_alg:
@@ -317,8 +323,7 @@ class TD3_team_alg:
             model_dict = ac.pi[0].state_dict()
             pretrained_dict = {k: v for k, v in torch.load(actor_state_dict).pi[0].state_dict().items() if k in model_dict and v.shape==model_dict[k].shape}
             model_dict.update(pretrained_dict)
-            
-
+            setattr(ac, 'total_delay', self.training_param_dict["start_steps"])           
             for i in range(len(ac.pi)):
                 ac.pi[i].load_state_dict(model_dict)
                 ac.pi[i].train()
@@ -383,7 +388,6 @@ class TD3_team_alg:
 
 
     def train_agents(self):
-        
         epochs = self.training_param_dict["epochs"]
         steps_per_epoch = self.training_param_dict["steps_per_epoch"]
         save_freq = self.training_param_dict["save_freq"]
@@ -394,7 +398,7 @@ class TD3_team_alg:
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
 
         for t in range(total_steps):
-            print(t)
+            
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
@@ -612,6 +616,7 @@ class soccer2vs0(TD3_team_alg):
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home), dtype='float32'), 0
 
         for t in range(total_steps):
+            self.home_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
