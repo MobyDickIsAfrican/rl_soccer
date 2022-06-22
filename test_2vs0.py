@@ -183,9 +183,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, help="Model path.", 
-            default="D:\\rl_soccer\\results\\resultados\\2vs0_final\\2022-01-07_00-02-21_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_02_21\\")
+            default="D:\\rl_soccer\\2vs0\\junio_2022\\2022-06-08_23-04-18_td3_soccer_goal_orig_concat_2vs0_0.1")
     parser.add_argument("--meta_file", type=str, help="Name of meta file associated to checkpoint to load.",
-    default="D:\\rl_soccer\\results\\resultados\\2vs0_final\\2022-01-07_00-02-21_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_02_21\\pyt_save\\best_models\\model19999.pt")
+    default="D:\\rl_soccer\\2vs0\\junio_2022\\2022-06-08_23-04-18_td3_soccer_goal_orig_concat_2vs0_0.1\pyt_save\\model9999.pt")
     parser.add_argument("--gpu", type=float, help="Fraction of gpu to use", default=1.0)
     args = parser.parse_args()
 
