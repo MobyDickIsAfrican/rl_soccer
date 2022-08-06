@@ -52,7 +52,3 @@ RUN apt-get update -y
 RUN apt-get install -y --no-install-recommends libopenmpi-dev
 RUN pip install -r requirements.txt
 RUN pip install protobuf==3.20.*
-
-VOLUME results /results
-
-
