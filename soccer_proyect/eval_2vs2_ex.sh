@@ -29,7 +29,7 @@ done
 (
 for (( i=0; i<${#combinations[@]}; i+=(2*$num) )); do 
     for (( j=0; j<(2*$num); j+=2 )); do
-         soccer_proyect/venv/Scripts/python.exe rl_soccer/eval_2vs2.py $agents_file --model_path $model_path  --team_1_idx ${combinations[i+j]} --team_2_idx ${combinations[i+j+1]} --save_path $save_path --order away_home;
+         python soccer_proyect/eval_2vs2.py $agents_file --model_path $model_path  --team_1_idx ${combinations[i+j]} --team_2_idx ${combinations[i+j+1]} --save_path $save_path --order away_home;
         
     done
     wait
