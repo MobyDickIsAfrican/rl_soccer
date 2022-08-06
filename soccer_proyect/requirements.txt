@@ -1,5 +1,6 @@
+mpi4py==3.0.3
 cloudpickle==2.0.0
-dm_control==0.0.425341097
+dm_control
 gym==0.23.0
 joblib==1.1.0
 matplotlib==3.5.1

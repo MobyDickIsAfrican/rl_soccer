@@ -98,14 +98,14 @@ def generate_2vs2_vid(save_path, model_path_home, model_name_home, model_path_aw
 
 
 if __name__ == "__main__":
-	path = "D:\\rl_soccer\\results\\resultados\\T1_2vs0_final\\2022-01-07_00-03-58_td3_soccer_goal_pass_join_2vs0_01_07_2022_00_03_58"
+	path = "D:\\rl_soccer\\2vs0\\junio_test_2022\\2022-06-08_23-03-58_td3_soccer_goal_orig_concat_2vs0_0.1"
 	model_away = "2889999"
 	model_home = "2939999"
 	model_home= "model"+model_home+".pt"
 	model_away = "model"+model_away+".pt"
 	model_path_home = os.path.join(path, "pyt_save", model_home)
 	model_path_away = os.path.join(path, "pyt_save", model_away)
-	save_path = os.path.join(path, "videos")
+	save_path = "D:\\rl_soccer\\Videos"
 	generate_2vs2_vid(save_path, model_path_home, model_home, model_path_away, model_away)
 
 

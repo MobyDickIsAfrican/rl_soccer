@@ -1,0 +1,20 @@
+MuJoCo Pro Personal license activation key, number 79594, type 6.
+
+Issued to Pavan Samtani <pavan.samtani@ug.uchile.cl>.
+
+Expires October 23, 2021.
+
+This file activates MuJoCo Pro on a single computer with id:
+WINDOWS_6KAxn9SB830153M512GDJiNG8H10A_ACET0E0y45hCDF20084
+
+Do not modify this file. Its entire content, including the
+plain text section, is used by the activation manager.
+
+b27b3df25f5e6c9899d5b63ff7999d231262b5f1c74d1bf911212afa5e843440
+cc1f31825c66aa5229d53f2f0f555fe5996305704da6217620e2e62bb1bea69a
+78026a30ef3507b1b008e7c10c1e41a271155a0c31fcedb55528d917b15f6aed
+4360ffdf7d4bb56e131e0f148a2a240484b09a970c18e15c0f287b0e6469aed7
+89f340e890d2ef8ea3275853b1205cea814f6ee0b235b6e38429a7898a62c108
+5fe3a2c54baea0072e79435e1034724d0bfa39ae69d8e049ad82c2c19554a18a
+82e2fc0f5d6ce1401572bfab1e531635419181e15fe2285cc7f1c62fb00f7cb7
+174c312d78860958656c7120331990460da00ee588e5d2308401e56f68c449a2

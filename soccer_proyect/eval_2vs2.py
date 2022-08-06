@@ -7,7 +7,8 @@ import numpy as np
 import os
 import torch
 from spinup.utils.test_policy import load_policy_and_env
-
+import json
+from itertools import chain
 
 num_runs = 500
 max_ep_len = 600
@@ -18,14 +19,14 @@ def main(team_1, team_2, model_path, order='home_away'):
 
     env = dm_soccer2gym.make("2vs2goal", task_kwargs={'rew_type': 'simple_v2', 'time_limit': 30., 'disable_jump': True, 'dist_thresh': .03, 
                              'control_timestep': 0.05, 'random_state': 69})
-    team_1[0] = os.path.join(model_path, team_1[0])
-    team_2[0] = os.path.join(model_path, team_2[0])
+    team_1 = os.path.join(model_path, team_1)
+    team_2 = os.path.join(model_path, team_2)
     
     if order == 'home_away':
         
-        _, get_action_1 = load_policy_and_env(*team_1)
+        _, get_action_1 = load_policy_and_env(team_1)
         
-        _, get_action_2 = load_policy_and_env(*team_2)
+        _, get_action_2 = load_policy_and_env(team_2)
     
     elif order == 'away_home':
 
@@ -69,22 +70,26 @@ def main(team_1, team_2, model_path, order='home_away'):
 
 
 if __name__ == "__main__":
+    base_path = "models\\"
     import pandas as pd
     parser = argparse.ArgumentParser()
-    parser.add_argument("agents_path",type=str, help="File where agents model_path and num are")
-    parser.add_argument("--model_path", type=str, help="path to where the models directories are stored", default="D:\\rl_soccer\\results\\resultados\\T1_2vs0_final")
+    parser.add_argument("--agents_path",type=str, help="File where agents model_path and num are", default="selected_models.json")
+    parser.add_argument("--model_path", type=str, help="path to where the models directories are stored", default=base_path)
     parser.add_argument("--team_1_idx", type=int, help="Agent 1 index", default=0)
     parser.add_argument("--team_2_idx", type=int, help="Agent 2 index", default=1)
     parser.add_argument("--save_path", type=str, help="Path to where save file with results", 
-                        default="D:\\rl_soccer\\results\\resultados\\2vs0_final")
+                        default="seleccion2vs0")
     parser.add_argument("--order", type=str, help="Order to be used for agents, home_away | away_home",
                         default='home_away')
     args = parser.parse_args()
 
-    agents = pd.read_csv(args.agents_path).values[:, 1:]
+    with open(args.agents_path, encoding='utf-8') as json_file:
+        agents = list(chain(json.load(json_file).values()))
+        agents = [values[0] for values in agents]
+        
     orig_path = os.getcwd()
 
-    s, t, f = main(agents[args.team_1_idx], agents[args.team_2_idx], args.model_path, args.order)
+    s, t, f = main(agents[args.team_1_idx][0], agents[args.team_2_idx][0], args.model_path, args.order)
     
     os.chdir(orig_path)
     os.makedirs(args.save_path, exist_ok=True)
