@@ -25,8 +25,6 @@ RUN apt-get update -q \
     && rm -rf /var/lib/apt/lists/*
 
 
-
-
 RUN curl -o /usr/local/bin/patchelf https://s3-us-west-2.amazonaws.com/openai-sci-artifacts/manual-builds/patchelf_0.9_amd64.elf \
     && chmod +x /usr/local/bin/patchelf
 
@@ -52,3 +50,4 @@ RUN apt-get update -y
 RUN apt-get install -y --no-install-recommends libopenmpi-dev
 RUN pip install -r requirements.txt
 RUN pip install protobuf==3.20.*
+RUN pip install torch==1.6.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html

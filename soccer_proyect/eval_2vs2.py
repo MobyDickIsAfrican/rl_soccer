@@ -1,5 +1,6 @@
 
 import argparse
+from email.mime import base
 from email.policy import default
 from re import A
 import dm_soccer2gym
@@ -15,24 +16,23 @@ max_ep_len = 600
 RENDER = False
 
 
-def main(team_1, team_2, model_path, order='home_away'):
+def main(team_1, team_2, model_path, order='home_away', gpu=1):
 
     env = dm_soccer2gym.make("2vs2goal", task_kwargs={'rew_type': 'simple_v2', 'time_limit': 30., 'disable_jump': True, 'dist_thresh': .03, 
                              'control_timestep': 0.05, 'random_state': 69})
-    team_1 = os.path.join(model_path, team_1)
-    team_2 = os.path.join(model_path, team_2)
+    team_1 = os.path.join(model_path, *team_1.split("\\"))
+    team_2 = os.path.join(model_path, *team_2.split("\\"))
     
     if order == 'home_away':
-        
         _, get_action_1 = load_policy_and_env(team_1)
         
         _, get_action_2 = load_policy_and_env(team_2)
     
     elif order == 'away_home':
 
-        _, get_action_2 = load_policy_and_env(*team_1)
+        _, get_action_2 = load_policy_and_env(team_1)
         
-        _, get_action_1 = load_policy_and_env(*team_2)
+        _, get_action_1 = load_policy_and_env(team_2)
     
     else:
         raise ValueError("Unexpected value for  parameter order, received %s, expected home_away | away_home" % (order))
@@ -70,25 +70,29 @@ def main(team_1, team_2, model_path, order='home_away'):
 
 
 if __name__ == "__main__":
-    base_path = "models\\"
+    base_path = "D:\\rl_soccer\\2vs0\\Junio_test_2022"
     import pandas as pd
     parser = argparse.ArgumentParser()
-    parser.add_argument("--agents_path",type=str, help="File where agents model_path and num are", default="selected_models.json")
+    parser.add_argument("--agents_path",type=str, help="File where agents model_path and num are", default=os.path.join(base_path, "selected_models.json"))
     parser.add_argument("--model_path", type=str, help="path to where the models directories are stored", default=base_path)
     parser.add_argument("--team_1_idx", type=int, help="Agent 1 index", default=0)
-    parser.add_argument("--team_2_idx", type=int, help="Agent 2 index", default=1)
+    parser.add_argument("--team_2_idx", type=int, help="Agent 2 index", default=5)
     parser.add_argument("--save_path", type=str, help="Path to where save file with results", 
-                        default="seleccion2vs0")
+                        default=os.path.join(base_path, "2vs2_eval"))
     parser.add_argument("--order", type=str, help="Order to be used for agents, home_away | away_home",
                         default='home_away')
     args = parser.parse_args()
 
     with open(args.agents_path, encoding='utf-8') as json_file:
-        agents = list(chain(json.load(json_file).values()))
-        agents = [values[0] for values in agents]
+        agents_json = json.load(json_file).values()
+        agents = []
+        for a_run in agents_json:
+            agents+=a_run
+
         
     orig_path = os.getcwd()
-
+    print("AQUI!!!!!!")
+    print(agents[args.team_1_idx][0], agents[args.team_2_idx][0])
     s, t, f = main(agents[args.team_1_idx][0], agents[args.team_2_idx][0], args.model_path, args.order)
     
     os.chdir(orig_path)

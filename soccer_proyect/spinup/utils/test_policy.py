@@ -38,7 +38,7 @@ def load_pytorch_policy(fpath, deterministic=False):
 
     print('\n\nLoading from %s.\n\n'%fpath.split("\\")[-1])
 
-    model = torch.load(fpath)
+    model = torch.load(fpath).cuda()
 
     # make function for producing an action given a single state
     def get_action(x):
