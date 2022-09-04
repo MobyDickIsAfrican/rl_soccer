@@ -28,7 +28,7 @@ with open(os.path.join(base_path, "selected_models.json"), encoding='utf-8') as 
         for a_run in agents_json:
             agents+=a_run
 
-rivals = [agents[22][0], agents[21][0], agents[19][0]]
+rivals = [agents[22][0].replace("\\", "/"), agents[21][0].replace("\\", "/"), agents[19][0].replace("\\", "/")]
 rivals = [os.path.join(base_path, a_rival) for a_rival in rivals]
 exp_kwargs = {"free_play":False, "rivals": rivals, "actor_state_dict": rivals[random.randint(0, 2)]}
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_orig_concat_2vs0_{args.control_timestep}", data_dir=args.save_path, datestamp=True)

@@ -542,7 +542,7 @@ class TD3_team_alg:
                 self.logger.log_tabular('LossQ', average_only=True)
                 self.logger.log_tabular('Time', time.time()-start_time)
                 self.logger.dump_tabular()
-            if not self.free_play and t%change_step==0:
+            if not self.free_play and t!=0 and t%change_step==0:
                 print("changing rival")
                 self.away_ac = self.rivals.pop(0)
 
