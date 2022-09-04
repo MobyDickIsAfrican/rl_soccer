@@ -199,7 +199,7 @@ class MLPAC_4_team(nn.Module):
             # Target Q-values
             q1_pi_targ = ac_targ.q1(o2, a2)
             q2_pi_targ = ac_targ.q2(o2, a2)
-            q_pi_targ = torch.minimum(q1_pi_targ, q2_pi_targ)
+            q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
             backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
