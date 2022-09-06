@@ -471,8 +471,6 @@ class TD3_team_alg:
         steps_per_epoch = self.training_param_dict["steps_per_epoch"]
         save_freq = self.training_param_dict["save_freq"]
         total_steps = steps_per_epoch*epochs
-        if not self.free_play:
-            change_step = int(total_steps/3)
         start_steps = self.training_param_dict["start_steps"]
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
@@ -483,11 +481,9 @@ class TD3_team_alg:
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
-            if t > start_steps:
-                a = self.get_action(o[np.newaxis, :], self.act_noise)
-                a = [a[0, i, :] for i in range(self.home)]
-            else:
-                a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
+            a = self.get_action(o[np.newaxis, :], self.act_noise)
+            a = [a[0, i, :] for i in range(self.home+self.away)]
+
 
             # step in the env:
             o2, r, d, _ = self.env.step(a)
@@ -505,6 +501,9 @@ class TD3_team_alg:
             if d or (ep_len == max_ep_len):
                 self.logger.store(EpRet=ep_ret, EpLen=ep_len)
                 o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home+self.away), dtype='float32'), 0
+                if not self.free_play:
+                    self.rivals.append(self.away_ac)
+                    self.away_ac = self.rivals.pop(0)
 
             
             # Update handling
@@ -542,9 +541,7 @@ class TD3_team_alg:
                 self.logger.log_tabular('LossQ', average_only=True)
                 self.logger.log_tabular('Time', time.time()-start_time)
                 self.logger.dump_tabular()
-            if not self.free_play and t!=0 and t%change_step==0:
-                print("changing rival")
-                self.away_ac = self.rivals.pop(0)
+            
 
 
 

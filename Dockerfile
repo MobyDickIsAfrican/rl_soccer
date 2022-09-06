@@ -52,4 +52,4 @@ RUN apt-get update -y
 RUN apt-get install -y --no-install-recommends libopenmpi-dev
 RUN pip install -r requirements.txt
 RUN pip install protobuf==3.20.*
-RUN pip install torch==1.6.0+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install torch==1.7.0 torchvision==0.8.1 -f https://download.pytorch.org/whl/cu101/torch_stable.html
