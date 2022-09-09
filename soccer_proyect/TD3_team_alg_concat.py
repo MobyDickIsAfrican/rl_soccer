@@ -184,8 +184,6 @@ class MLPAC_4_team(nn.Module):
         act_limit = self.loss_dict["act_limit"]
         gamma = self.loss_dict["gamma"]
 
-
-
         # Bellman backup for Q functions
         with torch.no_grad():
             pi_targ = ac_targ.act(o2)
@@ -428,7 +426,7 @@ class TD3_team_alg:
         if self.free_play:
             actions_away = self.away_ac.act(torch.as_tensor(o[:,self.home:, :], dtype=torch.float32).cuda()).detach().cpu().numpy()
         else: 
-            cut_obs = o[:, self.home:, :-(2*(self.home-1)+7*self.away)]
+            cut_obs = o[:, self.home:, :18+6]
             actions_away = self.away_ac(torch.as_tensor(cut_obs, dtype=torch.float32).cuda()).detach().cpu().numpy()
         actions = np.concatenate([actions, actions_away], axis=1)
         actions += noise_scale*np.random.randn(*actions.shape)
@@ -477,7 +475,7 @@ class TD3_team_alg:
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
 
         for t in tqdm(range(total_steps)):
-            
+            self.home_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
