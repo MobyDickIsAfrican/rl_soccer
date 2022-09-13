@@ -7,7 +7,7 @@ declare -i window=0
 declare -i pane=0
 session="2vs2_games_$order"
 tmux new-session -d -s $session 
-for ((i=0; i<6; i++)); do
+for ((i=0; i<3; i++)); do
     if [[ $pane -ne 0 ]] 
       then  
          tmux splitw -t $session:$window -d 
