@@ -23,7 +23,7 @@ args = parser.parse_args()
 from spinup.utils.run_utils import setup_logger_kwargs
 #model_path = "//home//amtc//roberto//Proyecto//1vs0//2022-05-02_11-58-33_td3_soccer_goal_pass_concat_2vs0_0.1//pyt_save//model2999999.pt"
 base_path = args.model_path
-#base_path = "D:\\rl_soccer\\2vs0\\Junio_test_2022"
+base_path = "D:\\rl_soccer\\2vs0\\Junio_test_2022"
 with open(os.path.join(base_path, "selected_models.json"), encoding='utf-8') as json_file:
         agents_json = json.load(json_file).values()
         agents = []

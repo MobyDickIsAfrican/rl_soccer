@@ -444,7 +444,7 @@ class TD3_team_alg:
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o[np.newaxis, :], 0)
                 o, r, d, _  = self.test_env.step([actions[0,i, :] for i in range(self.home+self.away)])
-                mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation[:self.home]]))
+                mean_n_pass += float(np.any([o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in self.test_env.timestep.observation[:self.home]]))
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
                 ep_len += 1
@@ -479,15 +479,18 @@ class TD3_team_alg:
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise). 
-            
+            '''
             if t > start_steps:
                 a = self.get_action(o[np.newaxis, :], self.act_noise)
                 a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
-
-
-
+            
+            '''
+            a = self.get_action(o[np.newaxis, :], self.act_noise)
+            a = [a[0, i, :] for i in range(self.home+self.away)]
+            
+            
             # step in the env:
             o2, r, d, _ = self.env.step(a)
             ep_ret += np.array(r)

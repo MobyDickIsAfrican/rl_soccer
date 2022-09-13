@@ -3,6 +3,8 @@ from dm_soccer2gym.wrapper import polar_mod, polar_ang, sqrt_2, sigmoid
 from collections import OrderedDict 
 import numpy as np
 from gym import core, spaces
+from plotter import generate_ball, generate_teams
+import matplotlib.pyplot as plt
 
 def convertObservation(spec_obs):
 	if not isinstance(spec_obs, list):
@@ -39,11 +41,7 @@ class Env2vs2(wrap.DmGoalWrapper):
     def get_angle(self,rotation_matrix):
         rotation_matrix = rotation_matrix.reshape(3,3)
         phi = np.arctan(rotation_matrix[1,0]/rotation_matrix[0,0])
-        cos_phi = np.cos(phi)
-        if cos_phi==0:
-            return np.arctan(-rotation_matrix[2, 0]/(rotation_matrix[1,0]/np.sin(phi)))
-        else: 
-            return np.arctan(-rotation_matrix[2, 0]/(rotation_matrix[0,0]/np.cos(phi)))
+        return phi
 
     def get_Area(self, obs):
         own_orientation = obs["sensors_gyro"][0, -1]
@@ -92,8 +90,8 @@ class Env2vs2(wrap.DmGoalWrapper):
         Rv, thetav = np.meshgrid(Rlim, thetaopp, sparse=True)
         xval = Rv*np.cos(thetav.T)
         yval = Rv*np.sin(thetav.T)
-        thetaM = np.arctan((yval-y_opp)/(xval-x_opp))
-        rM = np.sqrt(np.square(xval-x_opp)+np.square(yval-y_opp))
+        thetaM = np.arctan((yval+y_opp)/(xval+x_opp))
+        rM = np.sqrt(np.square(xval+x_opp)+np.square(yval+y_opp))
         min_r = np.min(rM)
         min_theta = np.min(thetaM)
         max_theta = np.max(thetaM)
@@ -103,7 +101,7 @@ class Env2vs2(wrap.DmGoalWrapper):
             thetaM_high = np.where(thetaM<angle_range_ego[1], 1, 0)
             RM_high = np.where(rM<5, 1, 0)
             in_cone = (thetaM_high*thetaM_low)*RM_high*np.ones_like(RM_high).T
-            instersection_area = np.sum(np.matmul(-dr*dtheta*in_cone, Rlim.T))
+            intersection_area = np.sum(np.matmul(-dr*dtheta*in_cone, Rlim.T))
         return intersection_area
         
         
@@ -265,7 +263,7 @@ class Env2vs2(wrap.DmGoalWrapper):
         # we check if there was a goal: 
         if not np.any(rewards):
         # there was not a goal
-            rewards += gave_pass*beta- beta_intercept*opponent_intercepted -1*(1 - np.logical_or(gave_pass, opponent_intercepted))
+            rewards += gave_pass*beta- beta_intercept*opponent_intercepted -0.1*(1 - np.logical_or(gave_pass, opponent_intercepted))
         else: 
             rewards *= alpha
         return rewards.tolist()
