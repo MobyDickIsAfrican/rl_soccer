@@ -4,10 +4,26 @@ from matplotlib.lines import Line2D
 import numpy as np
 import math
 # ploteando un cono:
+def fix_angle(angle):
+    if abs(angle)>np.pi:
+        if angle<0:
+            return 2*np.pi + angle
+        else: 
+            return -2*np.pi + angle
+    else: 
+        return angle
+
+def to_degree(angle):
+    return angle*180/np.pi
+
 def draw_agent(position, orientation,ax,home_away="home", number=1):
     player_width = 0.5
     radious = 5
-    proyected_position=tuple([position[0]+radious*np.cos(orientation),position[1]+radious*np.sin(orientation)])
+    orientation = orientation
+    if number==0:
+        proyected_position=tuple([position[0]+radious*np.cos(orientation),position[1]+radious*np.sin(orientation)])
+    else: 
+        proyected_position=tuple([position[0]-radious*np.sin(orientation),position[1]+radious*np.cos(orientation)])
     if ax is None:
         ax = plt.gca()
     if home_away=="home":
@@ -23,10 +39,17 @@ def draw_agent(position, orientation,ax,home_away="home", number=1):
     
     return agent
 
-def draw_cone(position, orientation, ax, home_away='home'):
+def draw_cone(position, orientation, ax, home_away='home', number=0):
     radious = 5
-    orientation = orientation*180/math.pi
-    angles = [orientation-45, orientation+45]
+    if number==0:
+        orientation = fix_angle(orientation)
+        angles = [fix_angle(orientation-np.pi/4), fix_angle(orientation+np.pi/4)]
+        
+    else:
+        orientation += np.pi/2
+        angles = [fix_angle(orientation-np.pi/4), fix_angle(orientation+np.pi/4)]
+
+    angles = [to_degree(a_angle) for a_angle in angles]
     if ax is None:
         ax = plt.gca()
     if home_away=="home":
@@ -42,7 +65,7 @@ def draw_cone(position, orientation, ax, home_away='home'):
 def generate_teams(positions, orientations, teams, ax):
     for i, (position, orientation, home_away) in enumerate(zip(positions, orientations, teams)):
         draw_agent(position, orientation, ax, home_away=home_away, number=i)
-        draw_cone(position, orientation, ax, home_away=home_away)
+        draw_cone(position, orientation, ax, home_away=home_away, number=i)
 
 def generate_ball(position, ax=None):
     if ax is None:
@@ -53,5 +76,11 @@ def generate_ball(position, ax=None):
 
 def get_angle(rotation_matrix):
     rotation_matrix = rotation_matrix.reshape(3,3)
-    phi = np.arctan(rotation_matrix[1,0]/rotation_matrix[0,0])
+    phi = np.arctan2(rotation_matrix[1,0],rotation_matrix[0,0])
     return phi
+
+def generate_text(Area_observations, ax=None):
+    area_text = [f"Area_0,{i+1}: {Area_observations[i]:.2f}" for i in range(len(Area_observations))]
+    if ax is None:
+        ax = plt.gca()
+    ax.text(-24, 20, ", ".join(area_text))    
