@@ -3,7 +3,8 @@ from dm_soccer2gym.wrapper import polar_mod, polar_ang, sqrt_2, sigmoid
 from collections import OrderedDict 
 import numpy as np
 from gym import core, spaces
-from plotter import generate_ball, generate_teams, generate_text
+from torch import angle
+from plotter import generate_ball, generate_teams, generate_text, to_degree
 import matplotlib.pyplot as plt
 
 def fix_angle(angle):
@@ -14,6 +15,23 @@ def fix_angle(angle):
             return -2*np.pi + angle
     else: 
         return angle
+
+def convert_to_circle_angle(angle):
+    if isinstance(angle, np.ndarray):
+        angle = np.where(angle<0, angle+2*np.pi, angle)
+    else:
+        angle = angle+2*np.pi if angle<0 else angle
+    return angle
+def in_cone_fn(angle_range, thetaM):
+    # two conditions angles have same sign or different sign:
+    angle_range = list(map(fix_angle, angle_range))
+    same_sign = np.prod(np.sign(angle_range)) > 0 
+    if same_sign or (not same_sign)*(angle_range[0]<0):
+        return  np.logical_and(thetaM>angle_range[0], thetaM<angle_range[1])
+    else: 
+        thetaM = convert_to_circle_angle(thetaM)
+        angle_range_up_limit = convert_to_circle_angle(angle_range[1])
+        return  np.logical_and(thetaM>angle_range[0], thetaM<angle_range_up_limit)
 
 def convertObservation(spec_obs):
 	if not isinstance(spec_obs, list):
@@ -40,14 +58,15 @@ class Env2vs2(wrap.DmGoalWrapper):
         self.cone_radiuos = 5
         self.cone_angle = np.pi/2
         self.cone_area = 0.5*self.cone_angle*(self.cone_radiuos)**2
-        self.cone_pass_angle = np.pi/3
+        self.cone_pass_angle = np.pi/6
         self.cone_pass_area = lambda x: 0.5*(x**2)*self.cone_pass_angle
         self.angle_range_ego = (self.cone_angle-np.pi/4, self.cone_angle+np.pi/4)
         self.current_team_with_ball = None
         self.old_observation_space = self.observation_space
         self.observation_space = spaces.Box(0, 1, shape=(18 + (self.num_players - 1) * 7 + (team_1-1),))
-        fig, ax = plt.subplots()
+        #fig, ax = plt.subplots()
         self.pitch_size = self.dmcenv.task.arena._size
+        self.show = False
     def get_angle(self,rotation_matrix):
         rotation_matrix = rotation_matrix.reshape(3,3)
         phi = np.arctan2(rotation_matrix[1,0],rotation_matrix[0,0])
@@ -62,6 +81,7 @@ class Env2vs2(wrap.DmGoalWrapper):
         ego_other_player_pos = teammate_pos + opp_pos 
         ego_other_player_angles =  teammate_orientation + opp_orientation 
         connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1])/self.cone_area for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
+        '''
         if self.now:
             ax = plt.gca()
             ax.cla()
@@ -71,15 +91,18 @@ class Env2vs2(wrap.DmGoalWrapper):
             generate_teams([[0,0]]+ego_other_player_pos, [own_orientation]+ego_other_player_angles, teams, ax)
             generate_text(connect_areas, ax) 
             plt.waitforbuttonpress()
+        
+        '''
+        
         connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1])/self.cone_area for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
         connect_areas_teammate = {f"intercept_area_teammate_{i}": connect_areas.pop(0)  for i in range(self.team_1-1)}
         connect_areas_opponent = {f"intercept_area_opponent_{i}": connect_areas.pop(0)  for i in range(self.team_2)}
         pass_cone = []
         for team_pos, team_or in zip(teammate_pos, teammate_orientation):
             pass_cone_area = self.cone_pass_area(polar_mod(team_pos))
-            summed_intersections = np.sum([self.calculate_intersection(team_or, angle_opp, pos[0], pos[1], pass_=True) \
+            summed_intersections = np.sum([self.calculate_intersection(team_or, angle_opp, pos[0], pos[1], pass_=True, team_pos = team_pos) \
                                                 for angle_opp, pos in zip(opp_orientation, opp_pos)])
-            pass_cone.append((pass_cone_area-summed_intersections)/pass_cone_area)
+            pass_cone.append((summed_intersections)/pass_cone_area)
         pass_areas_teammate = {f"intercept_area_pass_teammate_{i}": pass_cone.pop(0)  for i in range(self.team_1-1)}
 
         cone_observation = {**connect_areas_teammate, **connect_areas_opponent, **pass_areas_teammate}
@@ -87,57 +110,71 @@ class Env2vs2(wrap.DmGoalWrapper):
         
 
     
-    def calculate_intersection(self, angle_ego, angle_opp, x_opp, y_opp, pass_=False):
+    def calculate_intersection(self, angle_ego, angle_opp, x_opp, y_opp, **pass_kwargs):
+        pass_ = pass_kwargs.get("pass_", False)
+        self.pass_ = pass_
         if pass_:
-            angle_range_opp = [angle_opp - self.cone_pass_angle/2, angle_opp + self.cone_pass_angle/2]
-            angle_range_opp.sort()
-            dr = self.cone_radiuos/self.points
+            team_pos = np.array(pass_kwargs.get("team_pos"))
+            half_proyected_pos = np.array([-0.5*self.cone_radiuos*np.sin(angle_ego), 0.5*self.cone_radiuos*np.cos(angle_ego)])
+            proyected_pos = team_pos+half_proyected_pos
+            position_radious = polar_mod(proyected_pos)
+            angle_ego = polar_ang(proyected_pos[None, ...])
+            angle_range_ego  = [angle_ego - self.cone_pass_angle/2, angle_ego + self.cone_pass_angle/2]
+            dr = position_radious/self.points
             dtheta = (self.cone_pass_angle)/self.points
+            pass_kwargs = {"pass_": pass_,
+                            "radious": position_radious,
+                            "proyected_poss": proyected_pos,
+                            "team_pos": team_pos,
+                            "angle_ego": angle_ego}
         else: 
-            angle_range_opp = [angle_opp-self.cone_angle/2, angle_opp+self.cone_angle/2]
-            angle_range_opp.sort()
+            angle_range_ego  = [angle_ego-self.cone_angle/2, angle_ego+self.cone_angle/2]
             dr = self.cone_radiuos/self.points
             dtheta = self.cone_angle/self.points
         Rlim = np.linspace(0, self.cone_radiuos, num=self.points)
+        angle_range_opp = [angle_opp-self.cone_angle/2, angle_opp+self.cone_angle/2]
         thetaopp = np.linspace(angle_range_opp[0], angle_range_opp[1], num=self.points)
-        angle_range_ego = [angle_ego-np.pi/4, angle_ego+np.pi/4]
-        angle_range_ego.sort()
-        intersection_area = self.get_area(Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta)
-        if pass_:
+        
+        intersection_area = self.get_area(Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, pass_kwargs)
+        if pass_ and self.now:
             return intersection_area
         else: 
-            return np.array(self.cone_area + intersection_area)
+            return np.array(intersection_area)
 
     
-    def get_area(self, Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta):
+    def get_area(self, Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, pass_kwargs):
+        if pass_kwargs.get("pass_", False):
+            r = pass_kwargs.get("radious")
+        else: 
+            r = self.cone_radiuos
         Rv, thetav = np.meshgrid(Rlim, thetaopp)
         xval = -Rv*np.sin(thetav)
         yval = Rv*np.cos(thetav)
         thetaM = np.arctan2((yval+y_opp),(xval+x_opp))
-        Rlim2 = np.linspace(0, self.cone_radiuos, num=self.points)
-        thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=self.points)
-        Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
-        xval2 = Rv2*np.cos(thetav2)
-        yval2 = Rv2*np.sin(thetav2)
-        Radious = np.sqrt(np.square(xval2)+np.square(yval2))
         rM = np.sqrt(np.square(xval+x_opp)+np.square(yval+y_opp))
         min_r = np.min(rM)
         min_theta = np.min(thetaM)
         max_theta = np.max(thetaM)
         intersection_area = 0
-        if min_theta<fix_angle(angle_range_ego[1]) and max_theta>fix_angle(angle_range_ego[0]) and min_r<5:
-            thetaM_condition = np.logical_and(thetaM<fix_angle(angle_range_ego[1]), thetaM>fix_angle(angle_range_ego[0]))
-            RM_high = np.where(rM<5, 1, 0)
+        if min_theta<fix_angle(angle_range_ego[1]) and max_theta>fix_angle(angle_range_ego[0]) and min_r<r:
+            thetaM_condition =in_cone_fn(angle_range_ego, thetaM)
+            RM_high = np.where(rM<r, 1, 0)
             in_cone = thetaM_condition*RM_high
-            intersection_area = np.sum(np.matmul(-dr*dtheta*in_cone, Rlim.T))
+            intersection_area = np.sum(np.matmul(dr*dtheta*in_cone, Rlim.T))
             '''
-            ax2 = plt.gca()
-            ax2.cla()
-            ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
-            ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
-            plt.waitforbuttonpress()
+            if not self.pass_ and self.show:
+                Rlim2 = np.linspace(0, r, num=self.points)
+                thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=self.points)
+                Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
+                xval2 = Rv2*np.cos(thetav2)
+                yval2 = Rv2*np.sin(thetav2)
+                Radious = np.sqrt(np.square(xval2)+np.square(yval2))
+                fig, ax2 = plt.subplots()
+                ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
+                ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
+                plt.waitforbuttonpress()
             '''
-            
+        
         return intersection_area
         
         

@@ -3,6 +3,7 @@ from matplotlib.patches import Wedge, Circle
 from matplotlib.lines import Line2D
 import numpy as np
 import math
+from dm_soccer2gym.wrapper import polar_mod, polar_ang
 # ploteando un cono:
 def fix_angle(angle):
     if abs(angle)>np.pi:
@@ -39,15 +40,14 @@ def draw_agent(position, orientation,ax,home_away="home", number=1):
     
     return agent
 
-def draw_cone(position, orientation, ax, home_away='home', number=0):
-    radious = 5
+def draw_cone(position, orientation, ax, home_away='home', number=0, angle=np.pi/4, radious=5):
     if number==0:
         orientation = fix_angle(orientation)
-        angles = [fix_angle(orientation-np.pi/4), fix_angle(orientation+np.pi/4)]
+        angles = [fix_angle(orientation-angle), fix_angle(orientation+angle)]
         
     else:
         orientation += np.pi/2
-        angles = [fix_angle(orientation-np.pi/4), fix_angle(orientation+np.pi/4)]
+        angles = [fix_angle(orientation-angle), fix_angle(orientation+angle)]
 
     angles = [to_degree(a_angle) for a_angle in angles]
     if ax is None:
@@ -66,6 +66,8 @@ def generate_teams(positions, orientations, teams, ax):
     for i, (position, orientation, home_away) in enumerate(zip(positions, orientations, teams)):
         draw_agent(position, orientation, ax, home_away=home_away, number=i)
         draw_cone(position, orientation, ax, home_away=home_away, number=i)
+        if i==0:
+            [draw_pass_cone(position, a_position, a_orientation, ax, home_away) for j, (a_position, a_orientation) in enumerate(zip(positions, orientations)) if i!=j and teams[j]==home_away]
 
 def generate_ball(position, ax=None):
     if ax is None:
@@ -84,3 +86,13 @@ def generate_text(Area_observations, ax=None):
     if ax is None:
         ax = plt.gca()
     ax.text(-24, 20, ", ".join(area_text))    
+
+
+def draw_pass_cone(first_player_pos, position, orientation, ax, home_away='home'):
+    radious=2.5
+    angle = np.pi/6
+    proyected_position = np.array([position[0]-radious*np.sin(orientation),position[1]+radious*np.cos(orientation)])
+    radious = polar_mod(proyected_position)
+    angle_ego = polar_ang(proyected_position[None, ...])
+    draw_cone(first_player_pos, angle_ego, ax, home_away, angle=angle/2, radious=radious)
+
