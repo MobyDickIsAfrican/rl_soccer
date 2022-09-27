@@ -15,6 +15,7 @@ import itertools
 import time
 from spinup.utils.logx import EpochLogger
 from tqdm.auto import tqdm
+import random
 
 def combined_shape(length, shape=None):
     if shape is None:
@@ -259,7 +260,7 @@ class MLPAC_4_team(nn.Module):
 class TD3_team_alg:
     def __init__(self, env_fn, home_players, away_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=10000, epochs=2000, replay_size=int(2e6), gamma=0.99, 
-        polyak=0.995, pi_lr=1e-4, q_lr=1e-3, batch_size=256, start_steps=50000, 
+        polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=50000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
         logger_kwargs=dict(), save_freq=10, test_fn=None, exp_kwargs=dict()) -> None: 
@@ -473,22 +474,23 @@ class TD3_team_alg:
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
-
+        alpha_prob = 0
         for t in tqdm(range(total_steps)):
             self.home_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
-            # use the learned policy (with some noise, via act_noise). 
-            '''
-            if t > start_steps:
+            # use the learned policy (with some noise, via act_noise).
+            if t>start_steps and t<2*start_steps:
+                alpha_prob += 1/start_steps
+            elif t==2*start_steps:
+                alpha_prob=1
+            
+                
+            if t > start_steps and random.random()<alpha_prob:
                 a = self.get_action(o[np.newaxis, :], self.act_noise)
                 a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
-            
-            '''
-            a = self.get_action(o[np.newaxis, :], self.act_noise)
-            a = [a[0, i, :] for i in range(self.home+self.away)]
             
             
             # step in the env:

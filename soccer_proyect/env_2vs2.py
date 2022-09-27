@@ -325,7 +325,7 @@ class Env2vs2(wrap.DmGoalWrapper):
         # we find out if any of the players got the ball:
         gave_pass = np.squeeze(np.array([o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in obs]))
         gave_pass = np.array([any(gave_pass[:self.team_1])]*self.team_1 + [any(gave_pass[self.team_1:self.team_1 + self.team_2])]*self.team_2).astype(int)
-        opponent_intercepted = np.squeeze(np.array([obs[0]["stats_opponent_intercepted_ball"]]*self.team_1 + [obs[self.team_1]["stats_opponent_intercepted_ball"]]*self.team_2), -1)
+        opponent_intercepted = np.squeeze(np.array([obs[0]["stats_opponent_intercepted_ball"]]*self.team_1 + [obs[-1]["stats_opponent_intercepted_ball"]]*self.team_2), -1)
 
 
         # rewards of each player in the game 
@@ -337,7 +337,10 @@ class Env2vs2(wrap.DmGoalWrapper):
         # we check if there was a goal: 
         if not np.any(rewards):
         # there was not a goal
-            rewards += gave_pass*beta- beta_intercept*opponent_intercepted -0.1*(1 - np.logical_or(gave_pass, opponent_intercepted))
+            positive_reward = gave_pass*beta + beta_intercept*np.logical_not(opponent_intercepted)*np.any(opponent_intercepted)
+            punish_reward = - beta_intercept*opponent_intercepted
+            otherwise_reward = -1*(1 - np.logical_or(positive_reward!=0, punish_reward!=0))
+            rewards +=   positive_reward + punish_reward + otherwise_reward
         else: 
             rewards *= alpha
         return rewards.tolist()
