@@ -70,85 +70,148 @@ def count_vars(module):
 
 class MLPActor(nn.Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit, n_players=1):
+    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, act_limit, teammates, rivals):
         super().__init__()
         # setting the amount of players that will play
-        self.n_players = n_players
+        self.teammates = teammates
+        self.rivals = rivals
+        # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i
+        # the first list is for propioceptive observations and the second list is for external players
+        outputEncDim = 9*64
         # setting the size of the policy network:
         # where obs_dim is the dimension of the observations after going through the mlp
         # hidden_sizes is a list that shows the amount of hidden layers
         # act_dim is the action dimension of the players.
-        pi_sizes = [576] + list(hidden_sizes) + [act_dim]
+        pi_sizes = [outputEncDim] + list(hidden_sizes) + [act_dim]
+        self.rival_offset = 18+12*self.teammates
         # setting the mlp
         self.pi = mlp(pi_sizes, activation, nn.Tanh)
-        # setting the obs_analyzer: its 9 mlp per actor that process a concatenation of obs_i
-        # the first list is for propioceptive observations and the second list is for external players
-        outputExtDim = 576
-        self.team_opp = 18 + 6*(n_players)
-        self.opp_dim = obs_dim- self.team_opp
-        if n_players>0:
-            outputExtDim = int(576/n_players)
-        self.propEncoder = nn.ModuleList([mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)])
-        self.extEncoder =  nn.ModuleList([mlp([6, 32, outputExtDim], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU, init=True) for _ in range(n_players)] )
-        if self.opp_dim != 0:
-            self.oppEncoder = mlp([self.opp_dim, 32, 576], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU, init=True)
+        # propiocentric observation:
+        propEnc =[mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)] 
+        # teammate observation:
+        teammateEnc = [mlp([12, 32, outputEncDim], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU, init=True) for _ in range(teammates)]
+        # rivalObservation
+        rivalEnc = [mlp([9, 32, outputEncDim], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU, init=True) for _ in range(rivals)]
+
+        self.propEncoder = nn.ModuleList(propEnc)
+        self.teammateEncoder = nn.ModuleList(teammateEnc)
+        self.rivalEncoder = nn.ModuleList(rivalEnc)
         self.act_limit = torch.Tensor(np.array(act_limit)).cpu()
     
-    def analyze_observation(self, obs):
-        obs_prop = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
-        if len(self.extEncoder)>0:
-            obs_ext = torch.cat([self.extEncoder[i](obs[:, 18 + 6*i: 18 + 6*(i+1)]) for i in range(self.n_players)], -1)
-            obs_prop += obs_ext
-        if hasattr(self, "oppEncoder"):
-            obs_opp = self.oppEncoder(obs[:, self.team_opp:])
-            obs_prop += obs_opp
-        return obs_prop
+    def encode(self, obs):
+        """ 
+        encode is a function that generates the encoding of the observations into a feature space that 
+        is then used by the decoder part of the network. 
+        Args:
+            obs (torch.Tensor): The mujoco observations that are generated for every agent
+            act (torch.Tensor): The actions taken by the agent in time t-1. 
+
+        Returns:
+            torch.Tensor: The encoded observations
+        """
+        # prop observations
+        obs = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
+        if self.teammates>0:
+            # teammate observation
+            obs_prop = torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1)]) for i in range(self.teammates)], -1)
+        if self.rivals>0:
+            # rival observation
+            obs_prop += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1)]]) for i in range(self.rivals)], -1)
+        return obs
 
     def forward(self, obs):
         # Return output from network scaled to action space limits.
-        obs = self.analyze_observation(obs)
-        return self.act_limit * self.pi(obs)
+        encoded_obs = self.encode(obs)
+        return self.act_limit * self.pi(encoded_obs)
 
 class MLPQFunction(nn.Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation, n_players, observation_space):
+    def __init__(self, obs_dim, action_dim,hidden_sizes, activation, teammates, rivals):
         super().__init__()
-        self.n_players = n_players
+        # amount of players in the team
+        self.n_players = teammates+1
+        # number of teammates
+        self.teammates = teammates
+        # number of rivals
+        self.rival = rivals
+        # OBSERVARTIONS.
+        # OFFSETS:
         self.prop_offset = 2
-        self.ext_offset = 6
-        self.team_obs = 18+ 6*(n_players-1)
-        self.opp_dim =observation_space -self.team_obs
-        self.q = mlp([obs_dim] + list(hidden_sizes) + [n_players], activation)
-        self.obs_analyzer = nn.ModuleList([mlp([self.prop_offset+act_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]\
-                            + [mlp([6 + act_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(n_players-1)]+\
-                                [mlp([self.opp_dim+act_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU)])
-    def analyze_observation(self, obs, act):
-        encoded_obs = []
-        for player in range(self.n_players): 
-            obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, player, self.prop_offset*i : self.prop_offset*(i+1)], act[:, player, :]], 1)) for i in range(9)]
-            obs_ext = [self.obs_analyzer[9 + i](torch.cat([obs[:, player, self.prop_offset*9 + self.ext_offset*i : self.prop_offset*9 + self.ext_offset*(i+1)], \
-                                                                act[:, player, :]], -1))\
-                                 for i in range(self.n_players-1)]
-            obs_opp = [self.obs_analyzer[-1](torch.cat([obs[:, player, self.team_obs:], \
-                                                                act[:, player, :]], -1))]
-            encoded_obs.append(torch.cat(obs_prop + obs_ext + obs_opp, -1))
+        self.teammate_offset = 12
+        self.rival_offset = 9
+        # START OF OBSERVATION
+        self.rival_start = 9*self.rival_offset + 12*self.n_players
 
+        #MODEL GENERATION
+        # DECODER
+        self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [teammates], activation)
+        # PROPIOCENTRIC ENCODER
+        propEnc = [mlp([self.prop_offset+action_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]
+        # TEAMMATE OBSERVATION ENCODER
+        teammateEnc = [mlp([12, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(teammates)]
+        #RIVAL ENCODER
+        rivalEnc =  [mlp([9, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(rivals)]
+        # FINAL MODEL
+        self.obs_analyzer = nn.ModuleList(propEnc+teammateEnc+rivalEnc)
+
+
+
+    def encode(self, obs, act):
+        """ 
+        encode is a function that generates the encoding of the observations into a feature space that 
+        is then used by the decoder part of the network. 
+        Args:
+            obs (torch.Tensor): The mujoco observations that are generated for every agent
+            act (torch.Tensor): The actions taken by the agent in time t-1. 
+
+        Returns:
+            torch.Tensor: The encoded observations
+        """
+        encoded_obs = []
+        # iterate through every player
+        for player in range(self.n_players): 
+            # generate the propioceptive encoded observations of that player
+            obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, player, self.prop_offset*i : self.prop_offset*(i+1)], act[:, player, :]], 1)) for i in range(9)]
+            # generate the teammate encoded observations of that player
+            obs_teammate = [self.obs_analyzer[9 + i](obs[:, player, self.prop_offset*9 + self.teammate_offset*i : self.prop_offset*9 + self.teammate_offset*(i+1)])\
+                                 for i in range(self.teammates)]
+            # generate the rival encoded observations:
+            obs_rival = [self.obs_analyzer[(9+self.teammates) + i](obs[:, player, self.rival_start+ self.rival_offset*i : self.rival_start + self.rival_offset*(i+1)])\
+                                 for i in range(self.rival)]
+            # concatenate all observations of player
+            encoded_obs.append(torch.cat(obs_prop + obs_teammate + obs_rival, -1))
+        # concatenate all observations
         return torch.cat(encoded_obs, -1)
 
 
     def forward(self, obs, act):
-        obs = self.analyze_observation(obs, act)
-        q = self.q(obs)
+        encoded_obs = self.encode(obs, act)
+        q = self.q(encoded_obs)
         return q # Critical to ensure q has right shape.
 
 
 
 class MLPAC_4_team(nn.Module):
+    def calculate_obs(self, teammates, rivals):
+        '''
+        prop_dims = 18
+        teammate_dims = teammates*12
+        opponent_dims = rivals*9
+            
+        '''
+        return (9+ teammates+ rivals)*64
 
-    def __init__(self, team, players, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
-                activation=nn.LeakyReLU):
-        super().__init__()
         
+
+    def __init__(self, team, home, away, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
+                activation=nn.LeakyReLU, has_opp = False):
+        super().__init__()
+        if team =="home":
+            teammates = home-1
+            rivals = away
+        else:
+            teammates = away-1
+            rivals = home
         act_dim = action_space.shape[0]
         act_limit = action_space.high[0]
         self.polyak = polyak
@@ -156,19 +219,22 @@ class MLPAC_4_team(nn.Module):
         self.team = team
         self.total_delay = 0
         self.actual_delay = 0
+        players = teammates+1
 
+        obs_dim= self.calculate_obs(teammates, rivals)
         # build policy for each player in team
-        self.pi = nn.ModuleList([MLPActor(observation_space, act_dim, hidden_sizes, activation, act_limit, players-1)\
+        self.pi = nn.ModuleList([MLPActor(obs_dim, act_dim, hidden_sizes, activation, act_limit, teammates, rivals)\
                                                          for _ in range(players)])
         
         # build critic: 
         #FIXME: critic size should consider other players
         # 9 for the proprioceptive measurements of each agent, players-1 for each teammate measurement and 
         # one for the rivals.
-        critic_obs_dim = players*64*(9 + (players-1) +1)
         critic_action_dim = act_dim
-        self.q1 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players, observation_space)
-        self.q2 = MLPQFunction(critic_obs_dim, critic_action_dim, hidden_sizes, activation, players, observation_space)
+        
+        #obs_dim, hidden_sizes, activation, teammates, rivals
+        self.q1 = MLPQFunction(obs_dim, critic_action_dim,hidden_sizes, activation, teammates, rivals)
+        self.q2 = MLPQFunction(obs_dim, critic_action_dim,hidden_sizes, activation, teammates, rivals)
 
     def act(self, obs):
         return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :]),1) for i in range(len(self.pi))], axis=1)
@@ -212,6 +278,8 @@ class MLPAC_4_team(nn.Module):
 
         return loss_q, loss_info
 
+    
+
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
         # get the observation vector to cuda:
@@ -231,9 +299,6 @@ class MLPAC_4_team(nn.Module):
         # Record things
         logger.store(team=self.team, LossQ=loss_q.item(), **loss_info)
         if (timer % policy_delay) ==0:
-            # freeze critic: 
-            for p in q_param:
-                p.requires_grad = False
 
             # set gradiente to zero:
             if self.actual_delay >= 2*self.total_delay:
@@ -250,23 +315,20 @@ class MLPAC_4_team(nn.Module):
             else:
                 logger.store(team=self.team, LossPi=0) 
 
-            # unfreeze critics: 
-            for p in q_param:
-                p.requieres_grad = True
             
             
 
             
 class TD3_team_alg:
-    def __init__(self, env_fn, home_players, away_players, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
+    def __init__(self, home, away,env_fn, actor_critic=MLPAC_4_team, ac_kwargs=dict(), seed=0, 
         steps_per_epoch=10000, epochs=2000, replay_size=int(2e6), gamma=0.99, 
         polyak=0.995, pi_lr=1e-4, q_lr=1e-4, batch_size=256, start_steps=50000, 
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
         logger_kwargs=dict(), save_freq=10, test_fn=None, exp_kwargs=dict()) -> None: 
 
-        self.home = home_players
-        self.away = away_players
+        self.home = home
+        self.away = away
         self.__name__ = "training"
         self.env, self.test_env = env_fn(), test_fn() if test_fn is not None else env_fn()
         self.obs_dim = self.env.observation_space.shape
@@ -283,11 +345,12 @@ class TD3_team_alg:
 
         # Action limit for clamping: critically, assumes all dimensions share the same bound!
         act_limit = self.env.action_space.high[0]
+        # generate a parameter dict in which hyperparameters are stored
         self.loss_param_dict = {'target_noise': target_noise,
                                 'noise_clip': noise_clip,
                                 'act_limit': act_limit, 
                                 'gamma': gamma}
-        
+        # generate another dict where some specifics of training are stored
         self.training_param_dict = {"epochs": epochs,
                                     "steps_per_epoch": steps_per_epoch,
                                     "polyak": polyak,
@@ -311,34 +374,34 @@ class TD3_team_alg:
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
         self.home_ac, self.home_ac_targ, self.home_q_params, self.home_critic_buffer\
-                    , self.home_var_counts= self.create_team("home",home_players, actor_critic, ac_kwargs, actor_state_dict=actor_state_dict)  
+                    , self.home_var_counts= self.create_team("home", self.home, actor_critic, ac_kwargs, actor_state_dict=actor_state_dict)  
 
         # Count variables (protip: try to get a feel for how different size networks behave!)
         var_counts = list(count_vars(module) for module in [*self.home_ac.pi, self.home_ac.q1, self.home_ac.q2])
         self.logger.log(f'\nNumber of parameters for home team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
 
         ##### CREATION OF AWAY TEAM #######################
-        if self.free_play:
-            self.away_ac, self.away_ac_targ, self.away_q_params, self.away_critic_buffer\
-                        , self.away_var_counts= self.create_team("away", away_players, actor_critic, ac_kwargs, actor_state_dict=actor_state_dict) 
+        if away>0:
+            if self.free_play:
+                self.away_ac, self.away_ac_targ, self.away_q_params, self.away_critic_buffer\
+                            , self.away_var_counts= self.create_team("away", self.away, actor_critic, ac_kwargs, actor_state_dict=actor_state_dict) 
 
-            # Count variables (protip: try to get a feel for how different size networks behave!)
-            var_counts = list(count_vars(module) for module in [*self.away_ac.pi, self.away_ac.q1, self.away_ac.q2])
-            self.logger.log(f'\nNumber of parameters for away team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
-            # Set up optimizers for policy and q-function for the away team:
-            self.away_pi_optimizer = Adam(self.away_ac.pi.parameters(), lr=pi_lr)
-            self.away_q_optimizer = Adam(self.away_q_params, lr=q_lr)
-        else:
-            self.rivals = [load_policy_and_env(a_rival)[1] for a_rival in selected_rivals]
-            self.away_ac = self.rivals.pop(0)
+                # Count variables (protip: try to get a feel for how different size networks behave!)
+                var_counts = list(count_vars(module) for module in [*self.away_ac.pi, self.away_ac.q1, self.away_ac.q2])
+                self.logger.log(f'\nNumber of parameters for away team: \t pi: {var_counts[:-2]}, \t q1: {var_counts[-2]}, \t q2: {var_counts[-1]}\n')
+                # Set up optimizers for policy and q-function for the away team:
+                self.away_pi_optimizer = Adam(self.away_ac.pi.parameters(), lr=pi_lr)
+                self.away_q_optimizer = Adam(self.away_q_params, lr=q_lr)
+            else:
+                self.rivals = [load_policy_and_env(a_rival)[1] for a_rival in selected_rivals]
+                self.away_ac = self.rivals.pop(0)
 
         # Set up optimizers for policy and q-function for the home team
-        # Set up optimizers for policy and q-function for the home team
-        if actor_state_dict and not self.free_play:
+        if not (actor_state_dict is None) and (self.away==0 or not self.free_play):
             pi_parameters = list(self.home_ac.pi.named_parameters())
             pi_trained_params, pi_train_now_params = list(), list()
             for name, parameter in pi_parameters:
-                if "oppEncoder" in name:
+                if any(map(lambda x: x in name, exp_kwargs.get("train_now", []))):
                     pi_train_now_params.append(parameter)
                 else: 
                     pi_trained_params.append(parameter)
@@ -346,9 +409,9 @@ class TD3_team_alg:
             
         else:
             self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
-           
-        
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
+        self.has_rivals = hasattr(self, "away_ac")
+        self.free_play = self.free_play*self.has_rivals
         
         
         
@@ -356,9 +419,13 @@ class TD3_team_alg:
     def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs, actor_state_dict=None):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
+        if "home"==home_or_away:
+            has_opp = self.away>0
+        else:
+            has_opp = self.home>0
 
         polyak = self.training_param_dict['polyak']
-        ac = actor_critic(home_or_away, n_players, self.env.observation_space.shape[0], self.env.action_space, self.loss_param_dict, polyak, **ac_kwargs)
+        ac = actor_critic(home_or_away, self.home, self.away, self.env.observation_space.shape[0], self.env.action_space, self.loss_param_dict, polyak, has_opp=has_opp)
         if actor_state_dict:
             model_dict = ac.pi[0].state_dict()
             pretrained_dict = {k: v for k, v in torch.load(actor_state_dict).pi[0].state_dict().items() if k in model_dict and v.shape==model_dict[k].shape}
@@ -390,12 +457,17 @@ class TD3_team_alg:
         return ac, ac_targ, q_params, critic_buffer, var_counts
     
     def compute_q_loss(self, q_home_data, q_away_data):
-        return [self.home_ac.compute_q_loss(q_home_data, self.home_ac_targ, self.loss_param_dict),\
-                self.away_ac.compute_q_loss(q_away_data, self.away_ac_targ, self.loss_param_dict)]
+        q_loss = [self.home_ac.compute_q_loss(q_home_data, self.home_ac_targ, self.loss_param_dict)]
+        if self.has_rivals:
+            q_loss.append(self.away_ac.compute_q_loss(q_away_data, self.away_ac_targ, self.loss_param_dict))
+        return q_loss
+
 
     def compute_loss_pi(self, data_home, data_away):
-        return [self.home_ac.compute_loss_pi(data_home),
-                self.away_ac.compute_loss_pi(data_away)]
+        pi_loss = [self.home_ac.compute_loss_pi(data_home)]
+        if self.has_rivals:
+            pi_loss.append(self.away_ac.compute_loss_pi(data_away))
+        return pi_loss
     
     def update(self, data_home, data_away, timer):
         policy_delay = self.training_param_dict['policy_delay']
@@ -423,13 +495,15 @@ class TD3_team_alg:
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
-        actions = self.home_ac.act(torch.as_tensor(o[:,:self.home,:], dtype=torch.float32).cuda()).detach().cpu().numpy()
-        if self.free_play:
-            actions_away = self.away_ac.act(torch.as_tensor(o[:,self.home:, :], dtype=torch.float32).cuda()).detach().cpu().numpy()
-        else: 
-            cut_obs = o[:, self.home:, :18+6]
-            actions_away = self.away_ac(torch.as_tensor(cut_obs, dtype=torch.float32).cuda()).detach().cpu().numpy()
-        actions = np.concatenate([actions, actions_away], axis=1)
+        actions = [self.home_ac.act(torch.as_tensor(o[:,:self.home,:], dtype=torch.float32).cuda()).detach().cpu().numpy()]
+        actions_away= []
+        if self.has_rivals:
+            if self.free_play:
+                actions_away = self.away_ac.act(torch.as_tensor(o[:,self.home:, :], dtype=torch.float32).cuda()).detach().cpu().numpy()
+            else: 
+                obs = o[:, self.home:, :]
+                actions_away = self.away_ac(torch.as_tensor(obs, dtype=torch.float32).cuda()).detach().cpu().numpy()
+        actions = np.concatenate(actions +  actions_away, axis=1)
         actions += noise_scale*np.random.randn(*actions.shape)
         return np.clip(actions, -act_lim, act_lim)
     
@@ -479,14 +553,8 @@ class TD3_team_alg:
             self.home_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
-            # use the learned policy (with some noise, via act_noise).
-            if t>start_steps and t<2*start_steps:
-                alpha_prob += 1/start_steps
-            elif t==2*start_steps:
-                alpha_prob=1
-            
-                
-            if t > start_steps and random.random()<alpha_prob:
+            # use the learned policy (with some noise, via act_noise).          
+            if t > start_steps:
                 a = self.get_action(o[np.newaxis, :], self.act_noise)
                 a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
@@ -509,7 +577,7 @@ class TD3_team_alg:
             if d or (ep_len == max_ep_len):
                 self.logger.store(EpRet=ep_ret, EpLen=ep_len)
                 o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home+self.away), dtype='float32'), 0
-                if not self.free_play:
+                if not self.free_play and self.away>0:
                     self.rivals.append(self.away_ac)
                     self.away_ac = self.rivals.pop(0)
 

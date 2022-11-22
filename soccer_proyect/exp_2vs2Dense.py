@@ -23,7 +23,7 @@ args = parser.parse_args()
 from spinup.utils.run_utils import setup_logger_kwargs
 #model_path = "//home//amtc//roberto//Proyecto//1vs0//2022-05-02_11-58-33_td3_soccer_goal_pass_concat_2vs0_0.1//pyt_save//model2999999.pt"
 base_path = args.model_path
-#base_path = "D:\\rl_soccer\\2vs0\\Junio_test_2022"
+base_path = "D:\\rl_soccer\\2vs0\\Junio_test_2022"
 with open(os.path.join(base_path, "selected_models.json"), encoding='utf-8') as json_file:
         agents_json = json.load(json_file).values()
         agents = []
@@ -32,7 +32,7 @@ with open(os.path.join(base_path, "selected_models.json"), encoding='utf-8') as 
 
 rivals = [agents[22][0].split("\\"), agents[21][0].split("\\"), agents[19][0].split("\\")]
 rivals = [os.path.join(base_path, *a_rival) for a_rival in rivals]
-exp_kwargs = {"free_play":False, "rivals": rivals, "actor_state_dict": rivals[random.randint(0, 2)]}
+exp_kwargs = {"free_play":True, "rivals": rivals, "actor_state_dict": rivals[random.randint(0, 2)]}
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_orig_concat_2vs0_{args.control_timestep}", data_dir=args.save_path, datestamp=True)
 env_creator = lambda :   Env2vs2(team_1=2, team_2=2,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep,  "observables": "all"}) 

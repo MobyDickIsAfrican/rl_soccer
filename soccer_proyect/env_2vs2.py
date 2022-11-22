@@ -73,14 +73,22 @@ class Env2vs2(wrap.DmGoalWrapper):
         return phi
 
     def get_Area(self, obs):
+        # get the orientation of the agent
         own_orientation = obs["sensors_gyro"][0, -1]
-        teammate_pos = [obs[f'teammate_{i}_ego_position'][0, :2].tolist() for i in range(self.team_1-1)]
+        # we get the position of the teammate
+        teammate_pos = [obs[f'teammate_0_ego_position'][0, :2].tolist()]
+        # get the orientation of teammates players:
         teammate_orientation = [self.get_angle(obs[f'teammate_{i}_ego_orientation']) for i in range(self.team_1-1)]
+        # get the orientation of each opponent
         opp_orientation = [self.get_angle(obs[f'opponent_{i}_ego_orientation']) for i in range(self.team_2)] 
+        # get the position of each opponent:
         opp_pos = [obs[f'opponent_{i}_ego_position'][0, :2].tolist() for i in range(self.team_2)] 
-        ego_other_player_pos = teammate_pos + opp_pos 
+        # concatenate observation:
+        ego_other_player_pos = teammate_pos + opp_pos
+        # concatenate orientations: 
         ego_other_player_angles =  teammate_orientation + opp_orientation 
-        connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1])/self.cone_area for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
+        # get a list of intersections of each player with the agent:
+        connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1]) for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
         '''
         if self.now:
             ax = plt.gca()
@@ -94,16 +102,22 @@ class Env2vs2(wrap.DmGoalWrapper):
         
         '''
         
-        connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1])/self.cone_area for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
-        connect_areas_teammate = {f"intercept_area_teammate_{i}": connect_areas.pop(0)  for i in range(self.team_1-1)}
+        connect_areas_teammate = {f"intercept_area_teammate_0": connect_areas.pop(0)}
         connect_areas_opponent = {f"intercept_area_opponent_{i}": connect_areas.pop(0)  for i in range(self.team_2)}
-        pass_cone = []
+
+        ## GET THE PASS CONE INTERSECTION:
+        pass_cone_area = 0
+        centroid = None
         for team_pos, team_or in zip(teammate_pos, teammate_orientation):
-            pass_cone_area = self.cone_pass_area(polar_mod(team_pos))
-            summed_intersections = np.sum([self.calculate_intersection(team_or, angle_opp, pos[0], pos[1], pass_=True, team_pos = team_pos) \
-                                                for angle_opp, pos in zip(opp_orientation, opp_pos)])
-            pass_cone.append((summed_intersections)/pass_cone_area)
-        pass_areas_teammate = {f"intercept_area_pass_teammate_{i}": pass_cone.pop(0)  for i in range(self.team_1-1)}
+            self.actual_pass_cone_area = self.cone_pass_area(polar_mod(team_pos))
+            for angle_opp, pos in zip(opp_orientation, opp_pos):
+                centroid_pos, area = self.calculate_intersection(team_or, angle_opp, pos[0], pos[1], pass_=True, team_pos = team_pos)
+                if centroid is None:
+                    centroid = centroid_pos
+                pass_cone_area.append(area)
+            
+        pass_areas_teammate = {f"intercept_area_pass_teammate_{0}": sum(pass_cone_area),
+                                f"intercept_centroid_pass_teammate_{0}": centroid_pos}
 
         cone_observation = {**connect_areas_teammate, **connect_areas_opponent, **pass_areas_teammate}
         return cone_observation
@@ -111,38 +125,57 @@ class Env2vs2(wrap.DmGoalWrapper):
 
     
     def calculate_intersection(self, angle_ego, angle_opp, x_opp, y_opp, **pass_kwargs):
-        pass_ = pass_kwargs.get("pass_", False)
-        self.pass_ = pass_
-        if pass_:
-            team_pos = np.array(pass_kwargs.get("team_pos"))
-            half_proyected_pos = np.array([-0.5*self.cone_radiuos*np.sin(angle_ego), 0.5*self.cone_radiuos*np.cos(angle_ego)])
-            proyected_pos = team_pos+half_proyected_pos
-            position_radious = polar_mod(proyected_pos)
-            angle_ego = polar_ang(proyected_pos[None, ...])
-            angle_range_ego  = [angle_ego - self.cone_pass_angle/2, angle_ego + self.cone_pass_angle/2]
-            dr = position_radious/self.points
-            dtheta = (self.cone_pass_angle)/self.points
-            pass_kwargs = {"pass_": pass_,
-                            "radious": position_radious,
-                            "proyected_poss": proyected_pos,
-                            "team_pos": team_pos,
-                            "angle_ego": angle_ego}
-        else: 
-            angle_range_ego  = [angle_ego-self.cone_angle/2, angle_ego+self.cone_angle/2]
-            dr = self.cone_radiuos/self.points
-            dtheta = self.cone_angle/self.points
+        # generate a angle range in which the cone should be:
+        angle_range_ego  = [angle_ego-self.cone_angle/2, angle_ego+self.cone_angle/2]
+        # define a delta radious for space discretization:
+        dr = self.cone_radiuos/self.points
+        # define a delta theta for space discretization:
+        dtheta = self.cone_angle/self.points
+        # generate a discrete vertor with the Radious of the cone:
         Rlim = np.linspace(0, self.cone_radiuos, num=self.points)
+        # generate a range for the opponents cone
         angle_range_opp = [angle_opp-self.cone_angle/2, angle_opp+self.cone_angle/2]
+        # generate a discrete vector for the Radious of the cone: 
         thetaopp = np.linspace(angle_range_opp[0], angle_range_opp[1], num=self.points)
-        
+        # get the area of intersection between the opponents cone and the agent
         intersection_area = self.get_area(Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, pass_kwargs)
-        if pass_ and self.now:
-            return intersection_area
-        else: 
-            return np.array(intersection_area)
+        return intersection_area[0], intersection_area[-1]/self.cone_area
 
+    def calculate_pass_cone_intersection(self, angle_ego, angle_opp, x_opp, y_opp):
+        # get the teammate position
+        team_pos = np.array(pass_kwargs.get("team_pos"))
+        # get the proyected position of the half of the cone of the temmate
+        half_proyected_pos = np.array([-0.5*self.cone_radiuos*np.sin(angle_ego), 0.5*self.cone_radiuos*np.cos(angle_ego)])
+        # generate a proyected position
+        proyected_pos = team_pos+half_proyected_pos
+        # get the radious towards the proyected position
+        position_radious = polar_mod(proyected_pos)
+        # generate the angle for the proyected position
+        angle_ego = polar_ang(proyected_pos[None, ...])
+        # generate the range in which the angle of the cone moves:
+        angle_range_ego  = [angle_ego - self.cone_pass_angle/2, angle_ego + self.cone_pass_angle/2]
+        # generate a delta R for space discretization
+        dr = position_radious/self.points
+        # generate a delta Theta for space discretization:
+        dtheta = (self.cone_pass_angle)/self.points
+        # generate the pass key arguments for the intersection generation
+        pass_kwargs = {"pass_": True,
+                        "radious": position_radious,
+                        "proyected_poss": proyected_pos,
+                        "team_pos": team_pos,
+                        "angle_ego": angle_ego}
+        # vector of the discrete space for R:
+        Rlim = np.linspace(0, self.cone_radiuos, num=self.points)
+        # generate the cone for the opponent:
+        angle_range_opp = [angle_opp-self.cone_angle/2, angle_opp+self.cone_angle/2]
+        # vector for the discrete space of Theta:
+        thetaopp = np.linspace(angle_range_opp[0], angle_range_opp[1], num=self.points)
+        # calculate the intersection between this two areas:
+        intersection_area = self.get_area(Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, centroid=False, **pass_kwargs)
+        return [position_radious, angle_ego], np.array(intersection_area)/self.cone_pass_area
     
-    def get_area(self, Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, pass_kwargs):
+    def get_area(self, Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, has_centroid=True, **pass_kwargs):
+        centroid = [0,0]
         if pass_kwargs.get("pass_", False):
             r = pass_kwargs.get("radious")
         else: 
@@ -161,6 +194,7 @@ class Env2vs2(wrap.DmGoalWrapper):
             RM_high = np.where(rM<r, 1, 0)
             in_cone = thetaM_condition*RM_high
             intersection_area = np.sum(np.matmul(dr*dtheta*in_cone, Rlim.T))
+            centroid = np.array([np.mean(RM_high), np.mean(thetaM)])
             '''
             if not self.pass_ and self.show:
                 Rlim2 = np.linspace(0, r, num=self.points)
@@ -174,8 +208,11 @@ class Env2vs2(wrap.DmGoalWrapper):
                 ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
                 plt.waitforbuttonpress()
             '''
+        if has_centroid:
+            return [centroid, intersection_area]
+        else: 
+            return [centroid, intersection_area]
         
-        return intersection_area
         
         
 
@@ -269,7 +306,7 @@ class Env2vs2(wrap.DmGoalWrapper):
                 ball_team_goal_pos = -ball_pos + team_goal_pos
                 ball_goal_vel = o["stats_vel_ball_to_goal"]
                 ball_dist_scaled = np.array([ball_dist_scaled_all[ctr]])
-
+                
                 cut_obs.append(OrderedDict({"ball_dist_scaled": ball_dist_scaled, 
                                             "ball_angle_scaled": np.array([polar_ang(ball_pos) / (2 * np.pi)]),
                                             "vel_norm_scaled": np.array([polar_mod(np.tanh(actual_vel)) / sqrt_2]), 
@@ -292,6 +329,9 @@ class Env2vs2(wrap.DmGoalWrapper):
                 
 
                 for player in range(self.team_1 - 1):
+                    o_area = intercept_areas[f'intercept_area_teammate_{player}']
+                    o_area_pass = intercept_areas[f"intercept_area_pass_teammate_{player}"]
+                    o_centroid_pass = intercept_areas[f"intercept_centroid_pass_teammate_{player}"]
                     teammate_pos = -o[f"teammate_{player}_ego_position"][:, :2]
                     teammate_vel = o[f"teammate_{player}_ego_linear_velocity"][:, :2]
                     teammate_ball_pos = -teammate_pos + ball_pos
@@ -302,8 +342,15 @@ class Env2vs2(wrap.DmGoalWrapper):
                     cut_obs[-1][f"teammate_{player}_vel_angle_scaled"] = np.array([(polar_ang(teammate_vel) / (2 * np.pi))])
                     cut_obs[-1][f"teammate_{player}_ball_dist_scaled"] = np.array([(polar_mod(teammate_ball_pos) / self.max_dist)])
                     cut_obs[-1][f"teammate_{player}_ball_angle_scaled"] = np.array([(polar_ang(teammate_ball_pos) / (2 * np.pi))])
+                    cut_obs[-1][f"teammate_{player}_centroid_area_R"] = np.array(o_area[0][0]/ self.max_dist)
+                    cut_obs[-1][f"teammate_{player}_centroid_area_theta"] = np.array(o_area[0][1]/ (2 * np.pi))
+                    cut_obs[-1][f"teammate_{player}_intercept_area"] = np.array(o_area[1])
+                    cut_obs[-1][f"teammate_{player}_centroid_pass_R"] = np.array(o_area_pass/ self.max_dist)
+                    cut_obs[-1][f"teammate_{player}_centroid_pass_theta"] = np.array(o_centroid_pass[0]/ (2 * np.pi))
+                    cut_obs[-1][f"teammate_{player}_intercept_pass"] = np.array(o_centroid_pass[1])
                 
                 for player in range(self.team_2):
+                    o_area = intercept_areas[f'intercept_area_opponent_{player}']
                     opponent_pos = -o[f"opponent_{player}_ego_position"][:, :2]
                     opponent_vel = o[f"opponent_{player}_ego_linear_velocity"][:, :2]
                     opponent_ball_pos = -opponent_pos + ball_pos
@@ -314,7 +361,9 @@ class Env2vs2(wrap.DmGoalWrapper):
                     cut_obs[-1][f"opponent_{player}_vel_angle_scaled"] = np.array([(polar_ang(opponent_vel) / (2 * np.pi))])
                     cut_obs[-1][f"opponent_{player}_ball_dist_scaled"] = np.array([(polar_mod(opponent_ball_pos) / self.max_dist)])
                     cut_obs[-1][f"opponent_{player}_ball_angle_scaled"] = np.array([(polar_ang(opponent_ball_pos) / (2 * np.pi))])
-                cut_obs[-1].update(OrderedDict(intercept_areas))
+                    cut_obs[-1][f"opponent_{player}_centroid_area_R"] = np.array(o_area[0][0]/ self.max_dist)
+                    cut_obs[-1][f"opponent_{player}_centroid_area_theta"] = np.array(o_area[0][1]/ (2 * np.pi))
+                    cut_obs[-1][f"opponent_{player}_intercept_area"] = np.array(o_area[1])
                 ctr += 1
             cutted_obs = convertObservation(cut_obs)
             return np.clip(cutted_obs, -1, 1)
