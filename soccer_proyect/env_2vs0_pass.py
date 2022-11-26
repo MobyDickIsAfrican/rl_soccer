@@ -73,34 +73,23 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 		# get the orientation of the agent
 		own_orientation = obs["sensors_gyro"][0, -1]
 		# we get the position of the teammate
-		teammate_pos = [obs[f'teammate_0_ego_position'][0, :2].tolist()]
+		teammate_pos = [(-obs[f'teammate_0_ego_position'][0, :2]).tolist()]
 		# get the orientation of teammates players:
 		teammate_orientation = [self.get_angle(obs[f'teammate_{i}_ego_orientation']) for i in range(self.team_1-1)]
 		# get the orientation of each opponent
 		opp_orientation = [self.get_angle(obs[f'opponent_{i}_ego_orientation']) for i in range(self.team_2)] 
 		# get the position of each opponent:
-		opp_pos = [obs[f'opponent_{i}_ego_position'][0, :2].tolist() for i in range(self.team_2)] 
+		opp_pos = [-obs[f'opponent_{i}_ego_position'][0, :2].tolist() for i in range(self.team_2)] 
 		# concatenate observation:
 		ego_other_player_pos = teammate_pos + opp_pos
 		# concatenate orientations: 
 		ego_other_player_angles =  teammate_orientation + opp_orientation 
 		# get a list of intersections of each player with the agent:
 		connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1]) for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
-		'''
-		if self.now:
-			ax = plt.gca()
-			ax.cla()
-			teams=["home"]*2+["away"]*2
-			ax.set_xbound(-self.pitch_size[0], self.pitch_size[0])
-			ax.set_ybound(-self.pitch_size[1], self.pitch_size[1])
-			generate_teams([[0,0]]+ego_other_player_pos, [own_orientation]+ego_other_player_angles, teams, ax)
-			generate_text(connect_areas, ax) 
-			plt.waitforbuttonpress()
 
-		'''
 
-		connect_areas_teammate = {f"intercept_area_teammate_0": connect_areas.pop(0)}
-		connect_areas_opponent = {f"intercept_area_opponent_{i}": connect_areas.pop(0)  for i in range(self.team_2)}
+		connect_areas_teammate = {f"intercept_area_teammate_0": connect_areas[i][1] for i in range(self.team_1-1)}
+		centroid_interception_teammate = {f"intercept_centroid_teammate_0": connect_areas[i][0] for i in range(self.team_1-1)}
 
 		## GET THE PASS CONE INTERSECTION:
 		
@@ -114,7 +103,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			pass_areas_teammate = {f"intercept_area_pass_teammate_{0}": pass_cone_area,
 								f"intercept_centroid_pass_teammate_{0}": (r_mid, theta_mid)}
 
-		cone_observation = {**connect_areas_teammate, **connect_areas_opponent, **pass_areas_teammate}
+		cone_observation =  {**connect_areas_teammate, **centroid_interception_teammate,**pass_areas_teammate}
 		return cone_observation
         
 
@@ -192,19 +181,6 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 			in_cone = thetaM_condition*RM_high
 			intersection_area = np.sum(np.matmul(dr*dtheta*in_cone, Rlim.T))
 			centroid = np.array([np.mean(RM_high), np.mean(thetaM)])
-			'''
-			if not self.pass_ and self.show:
-				Rlim2 = np.linspace(0, r, num=self.points)
-				thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=self.points)
-				Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
-				xval2 = Rv2*np.cos(thetav2)
-				yval2 = Rv2*np.sin(thetav2)
-				Radious = np.sqrt(np.square(xval2)+np.square(yval2))
-				fig, ax2 = plt.subplots()
-				ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
-				ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
-				plt.waitforbuttonpress()
-			'''
 		if has_centroid:
 			return [centroid, intersection_area]
 		else: 
@@ -321,6 +297,7 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 
 				for player in range(self.team_1 - 1):
 					o_area = intercept_areas[f'intercept_area_teammate_{player}']
+					o_centroid = intercept_areas["intercept_centroid_teammate_0"]
 					o_area_pass = intercept_areas[f"intercept_area_pass_teammate_{player}"]
 					o_centroid_pass = intercept_areas[f"intercept_centroid_pass_teammate_{player}"]
 					teammate_pos = -o[f"teammate_{player}_ego_position"][:, :2]
@@ -333,12 +310,12 @@ class stage_soccerTraining_pass(wrap.DmGoalWrapper):
 					cut_obs[-1][f"teammate_{player}_vel_angle_scaled"] = np.array([(polar_ang(teammate_vel) / (2 * np.pi))])
 					cut_obs[-1][f"teammate_{player}_ball_dist_scaled"] = np.array([(polar_mod(teammate_ball_pos) / self.max_dist)])
 					cut_obs[-1][f"teammate_{player}_ball_angle_scaled"] = np.array([(polar_ang(teammate_ball_pos) / (2 * np.pi))])
-					cut_obs[-1][f"teammate_{player}_centroid_area_R"] = np.array(o_area[0][0])/ self.max_dist
-					cut_obs[-1][f"teammate_{player}_centroid_area_theta"] = np.array(o_area[0][1])/ (2 * np.pi)
-					cut_obs[-1][f"teammate_{player}_intercept_area"] = np.array(o_area[1])
-					cut_obs[-1][f"teammate_{player}_centroid_pass_R"] = np.array(o_area_pass)/ self.max_dist
-					cut_obs[-1][f"teammate_{player}_centroid_pass_theta"] = np.array(o_centroid_pass[0])/ (2 * np.pi)
-					cut_obs[-1][f"teammate_{player}_intercept_pass"] = np.array(o_centroid_pass[1])
+					cut_obs[-1][f"teammate_{player}_centroid_area_R"] = np.array([o_centroid[0]/ self.max_dist])
+					cut_obs[-1][f"teammate_{player}_centroid_area_theta"] = np.array([o_centroid[1]/ (2 * np.pi)])
+					cut_obs[-1][f"teammate_{player}_intercept_area"] = np.array([o_area])
+					cut_obs[-1][f"teammate_{player}_centroid_pass_R"] = np.array([o_centroid_pass[0]/ self.max_dist])
+					cut_obs[-1][f"teammate_{player}_centroid_pass_theta"] = np.array([o_centroid_pass[1]/ (2*np.pi)])
+					cut_obs[-1][f"teammate_{player}_intercept_pass"] = np.array([o_area_pass])
 
 				ctr += 1
 			cutted_obs = convertObservation(cut_obs)

@@ -85,8 +85,13 @@ def generate_text(Area_observations, ax=None):
     area_text = [f"Area_0,{i+1}: {Area_observations[i]:.2f}" for i in range(len(Area_observations))]
     if ax is None:
         ax = plt.gca()
-    ax.text(-24, 20, ", ".join(area_text))    
+    ax.text(-24, 20, ", ".join(area_text))
 
+def generate_centroid_text(Centroids, ax=None):
+    area_text = [f"Centroid_0,{i+1}: {Centroids[i]}" for i in range(len(Centroids))]
+    if ax is None:
+        ax = plt.gca()
+    ax.text(-24, 18, ", ".join(area_text))
 
 def draw_pass_cone(first_player_pos, position, orientation, ax, home_away='home'):
     radious=2.5

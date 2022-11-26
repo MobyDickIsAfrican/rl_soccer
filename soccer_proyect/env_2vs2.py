@@ -89,21 +89,11 @@ class Env2vs2(wrap.DmGoalWrapper):
         ego_other_player_angles =  teammate_orientation + opp_orientation 
         # get a list of intersections of each player with the agent:
         connect_areas = [self.calculate_intersection(own_orientation, angle_opp, pos[0], pos[1]) for angle_opp, pos in zip(ego_other_player_angles, ego_other_player_pos)]
-        '''
-        if self.now:
-            ax = plt.gca()
-            ax.cla()
-            teams=["home"]*2+["away"]*2
-            ax.set_xbound(-self.pitch_size[0], self.pitch_size[0])
-            ax.set_ybound(-self.pitch_size[1], self.pitch_size[1])
-            generate_teams([[0,0]]+ego_other_player_pos, [own_orientation]+ego_other_player_angles, teams, ax)
-            generate_text(connect_areas, ax) 
-            plt.waitforbuttonpress()
         
-        '''
-        
-        connect_areas_teammate = {f"intercept_area_teammate_0": connect_areas.pop(0)}
-        connect_areas_opponent = {f"intercept_area_opponent_{i}": connect_areas.pop(0)  for i in range(self.team_2)}
+        connect_areas_teammate = {f"intercept_area_teammate_0": connect_areas[i][1] for i in range(self.team_1-1)}
+        centroid_interception_teammate = {f"intercept_centroid_teammate_0": connect_areas[i][0] for i in range(self.team_1-1)}
+        connect_areas_opponent = {f"intercept_area_opponent_{i}": connect_areas[i][1]  for i in range(1, len(connect_areas))}
+        intercept_centroid_opponent = {f"intercept_centroid_opponent_{i}": connect_areas[i][0]  for i in range(1, len(connect_areas))}
 
         ## GET THE PASS CONE INTERSECTION:
         pass_cone_area = 0
@@ -119,7 +109,7 @@ class Env2vs2(wrap.DmGoalWrapper):
         pass_areas_teammate = {f"intercept_area_pass_teammate_{0}": sum(pass_cone_area),
                                 f"intercept_centroid_pass_teammate_{0}": centroid_pos}
 
-        cone_observation = {**connect_areas_teammate, **connect_areas_opponent, **pass_areas_teammate}
+        cone_observation = {**connect_areas_teammate, **centroid_interception_teammate,**connect_areas_opponent, **intercept_centroid_opponent, **pass_areas_teammate}
         return cone_observation
         
 
@@ -195,19 +185,6 @@ class Env2vs2(wrap.DmGoalWrapper):
             in_cone = thetaM_condition*RM_high
             intersection_area = np.sum(np.matmul(dr*dtheta*in_cone, Rlim.T))
             centroid = np.array([np.mean(RM_high), np.mean(thetaM)])
-            '''
-            if not self.pass_ and self.show:
-                Rlim2 = np.linspace(0, r, num=self.points)
-                thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=self.points)
-                Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
-                xval2 = Rv2*np.cos(thetav2)
-                yval2 = Rv2*np.sin(thetav2)
-                Radious = np.sqrt(np.square(xval2)+np.square(yval2))
-                fig, ax2 = plt.subplots()
-                ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
-                ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
-                plt.waitforbuttonpress()
-            '''
         if has_centroid:
             return [centroid, intersection_area]
         else: 
