@@ -144,7 +144,7 @@ class MLPQFunction(nn.Module):
 
         #MODEL GENERATION
         # DECODER
-        self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [teammates], activation)
+        self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [max(teammates,1)], activation)
         # PROPIOCENTRIC ENCODER
         propEnc = [mlp([self.prop_offset+action_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]
         # TEAMMATE OBSERVATION ENCODER
@@ -495,13 +495,13 @@ class TD3_team_alg:
 
     def get_action(self, o, noise_scale):
         act_lim = self.loss_param_dict['act_limit']
-        actions = [self.home_ac.act(torch.as_tensor(o[:,:self.home,:], dtype=torch.float32).cuda()).detach().cpu().numpy()]
+        actions = [self.home_ac.act(torch.as_tensor(o[0][None, ...], dtype=torch.float32).cuda()).detach().cpu().numpy()]
         actions_away= []
         if self.has_rivals:
             if self.free_play:
-                actions_away = self.away_ac.act(torch.as_tensor(o[:,self.home:, :], dtype=torch.float32).cuda()).detach().cpu().numpy()
+                actions_away = self.away_ac.act(torch.as_tensor(o[1][None, ...], dtype=torch.float32).cuda()).detach().cpu().numpy()
             else: 
-                obs = o[:, self.home:, :]
+                obs = o[1][None, ...]
                 actions_away = self.away_ac(torch.as_tensor(obs, dtype=torch.float32).cuda()).detach().cpu().numpy()
         actions = np.concatenate(actions +  actions_away, axis=1)
         actions += noise_scale*np.random.randn(*actions.shape)
@@ -517,13 +517,13 @@ class TD3_team_alg:
             o, ep_ret, d, ep_len = self.test_env.reset(),np.array([0]*(self.home + self.away), dtype='float32'), False,0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                actions = self.get_action(o[np.newaxis, :], 0)
+                actions = self.get_action(o, 0)
                 o, r, d, _  = self.test_env.step([actions[0,i, :] for i in range(self.home+self.away)])
                 mean_n_pass += float(np.any([o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in self.test_env.timestep.observation[:self.home]]))
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
                 ep_len += 1
-            if (ep_len < max_ep_len) and (self.test_env.timestep.reward[0] > 0):
+            if (ep_len <= max_ep_len) and (self.test_env.timestep.reward[0] > 0):
                 succes_rate += 1
             self.logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
         succes_rate /= num_test_episodes
@@ -548,14 +548,14 @@ class TD3_team_alg:
         start_time = time.time()
         max_ep_len = self.training_param_dict["max_ep_len"]
         o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home + self.away), dtype='float32'), 0
-        alpha_prob = 0
+
         for t in tqdm(range(total_steps)):
             self.home_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise).          
             if t > start_steps:
-                a = self.get_action(o[np.newaxis, :], self.act_noise)
+                a = self.get_action(o, self.act_noise)
                 a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
@@ -569,9 +569,11 @@ class TD3_team_alg:
             d = False if ep_len == max_ep_len else d
 
             # store in buffer: 
-            self.home_critic_buffer.store(o[:self.home], a[:self.home], r[:self.home], o2[:self.home], d)
+            self.home_critic_buffer.store(o[0], a[:self.home], r[:self.home], o2[0], d)
             if self.free_play:
-                self.away_critic_buffer.store(o[self.home:], a[self.home:], r[self.home:], o2[self.home:], d)
+                self.away_critic_buffer.store(o[1], a[self.home:], r[self.home:], o2[1], d)
+
+            #update observation: 
             o = o2
 
             if d or (ep_len == max_ep_len):
@@ -737,7 +739,7 @@ class soccer2vs0(TD3_team_alg):
             o, d, ep_ret, ep_len = self.test_env.reset(), False, np.array([0]*(self.home), dtype='float32'), 0
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
-                actions = self.get_action(o[np.newaxis, :], 0)
+                actions = self.get_action(o, 0)
                 o, r, d, _ = self.test_env.step([actions[0,i, :] for i in range(self.home)])
                 mean_n_pass += float(np.any([o['stats_i_received_pass'] for o in self.test_env.timestep.observation]))
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]

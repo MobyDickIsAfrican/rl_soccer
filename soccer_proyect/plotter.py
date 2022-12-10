@@ -4,6 +4,20 @@ from matplotlib.lines import Line2D
 import numpy as np
 import math
 from dm_soccer2gym.wrapper import polar_mod, polar_ang
+
+
+def plot_intersection(r, points, angle_range_ego, xval, x_opp, yval, y_opp, in_cone):
+    Rlim2 = np.linspace(0, r, num=points)
+    thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=points)
+    Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
+    xval2 = Rv2*np.cos(thetav2)
+    yval2 = Rv2*np.sin(thetav2)
+    Radious = np.sqrt(np.square(xval2)+np.square(yval2))
+    fig, ax2 = plt.subplots()
+    ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
+    ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
+    plt.waitforbuttonpress()
+
 # ploteando un cono:
 def fix_angle(angle):
     if abs(angle)>np.pi:
@@ -85,13 +99,13 @@ def generate_text(Area_observations, ax=None):
     area_text = [f"Area_0,{i+1}: {Area_observations[i]:.2f}" for i in range(len(Area_observations))]
     if ax is None:
         ax = plt.gca()
-    ax.text(-24, 20, ", ".join(area_text))
+    ax.text(-24, 20, ",".join(area_text), wrap=True)
 
 def generate_centroid_text(Centroids, ax=None):
     area_text = [f"Centroid_0,{i+1}: {Centroids[i]}" for i in range(len(Centroids))]
     if ax is None:
         ax = plt.gca()
-    ax.text(-24, 18, ", ".join(area_text))
+    ax.text(-24, 18, ", ".join(area_text), wrap=True)
 
 def draw_pass_cone(first_player_pos, position, orientation, ax, home_away='home'):
     radious=2.5
