@@ -412,7 +412,11 @@ class TD3_team_alg:
         self.home_q_optimizer = Adam(self.home_q_params, lr=q_lr)
         self.has_rivals = hasattr(self, "away_ac")
         self.free_play = self.free_play*self.has_rivals
-        
+        #setup saver:
+        self.logger.setup_pytorch_saver(self.home_ac)
+        #setup saver:
+        if self.has_rivals:
+            self.logger.setup_pytorch_saver(self.away_ac)
         
         
 
@@ -555,8 +559,9 @@ class TD3_team_alg:
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise).          
             if t > start_steps:
-                a = self.get_action(o, self.act_noise)
-                a = [a[0, i, :] for i in range(self.home+self.away)]
+                with torch.no_grad():
+                    a = self.get_action(o, self.act_noise)
+                    a = [a[0, i, :] for i in range(self.home+self.away)]
             else:
                 a = [self.env.action_space.sample() for _ in range(self.home+self.away)]
             
