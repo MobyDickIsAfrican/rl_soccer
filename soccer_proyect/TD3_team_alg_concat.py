@@ -113,10 +113,10 @@ class MLPActor(nn.Module):
         obs = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
         if self.teammates>0:
             # teammate observation
-            obs_prop = torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1)]) for i in range(self.teammates)], -1)
+            obs += torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1), :]) for i in range(self.teammates)], -1)
         if self.rivals>0:
             # rival observation
-            obs_prop += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1)]]) for i in range(self.rivals)], -1)
+            obs += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1), :]]) for i in range(self.rivals)], -1)
         return obs
 
     def forward(self, obs):
@@ -204,7 +204,7 @@ class MLPAC_4_team(nn.Module):
         
 
     def __init__(self, team, home, away, observation_space, action_space, loss_dict, polyak=0.1,  hidden_sizes=(256, 256),
-                activation=nn.LeakyReLU, has_opp = False):
+                activation=nn.LeakyReLU):
         super().__init__()
         if team =="home":
             teammates = home-1
@@ -227,7 +227,6 @@ class MLPAC_4_team(nn.Module):
                                                          for _ in range(players)])
         
         # build critic: 
-        #FIXME: critic size should consider other players
         # 9 for the proprioceptive measurements of each agent, players-1 for each teammate measurement and 
         # one for the rivals.
         critic_action_dim = act_dim
@@ -264,8 +263,8 @@ class MLPAC_4_team(nn.Module):
             # Target Q-values
             q1_pi_targ = ac_targ.q1(o2, a2)
             q2_pi_targ = ac_targ.q2(o2, a2)
-            q_pi_targ = torch.min(q1_pi_targ, q2_pi_targ)
-            backup = r + (gamma * (1 - d[:, np.newaxis]) * q_pi_targ)
+            q_pi_targ = torch.minimum(q1_pi_targ, q2_pi_targ)
+            backup = r + (gamma * (1 - d[..., np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
         loss_q1 = torch.mean(torch.square((q1 - backup)))
@@ -282,13 +281,13 @@ class MLPAC_4_team(nn.Module):
 
     # Set up function for computing TD3 pi loss
     def compute_loss_pi(self, data):
-        # get the observation vector to cuda:
+        # get the observation vector:
         o = torch.Tensor(data["obs"]).cuda()
         # compute the Q value of the state, action: 
         q1_pi = self.q1(o, self.act(o))
         # get the mean value of the q1_pi values and turn them negative
         # for gradient descent
-        return -q1_pi.mean()
+        return -torch.sum(torch.mean(q1_pi, axis=0))
 
     # update method for the networks: 
     def update(self, buffer, q_optim, pi_optim, ac_targ, timer, logger, q_param, policy_delay):
@@ -302,6 +301,10 @@ class MLPAC_4_team(nn.Module):
 
             # set gradiente to zero:
             if self.actual_delay >= 2*self.total_delay:
+                # freeze critic: 
+                for p in q_param:
+                    p.requires_grad = False
+
                 pi_optim.zero_grad()
                 # calculate loss: 
                 loss_pi = self.compute_loss_pi(buffer)
@@ -310,6 +313,11 @@ class MLPAC_4_team(nn.Module):
                 loss_pi.backward()
                 # update weights:
                 pi_optim.step()
+
+                # unfreeze critics: 
+                for p in q_param:
+                    p.requieres_grad = True
+
                 # Record things
                 logger.store(team=self.team, LossPi=loss_pi.item()) 
             else:
@@ -423,13 +431,9 @@ class TD3_team_alg:
     def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs, actor_state_dict=None):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
-        if "home"==home_or_away:
-            has_opp = self.away>0
-        else:
-            has_opp = self.home>0
 
         polyak = self.training_param_dict['polyak']
-        ac = actor_critic(home_or_away, self.home, self.away, self.env.observation_space.shape[0], self.env.action_space, self.loss_param_dict, polyak, has_opp=has_opp)
+        ac = actor_critic(home_or_away, self.home, self.away, self.env.observation_space.shape[0], self.env.action_space, self.loss_param_dict, polyak)
         if actor_state_dict:
             model_dict = ac.pi[0].state_dict()
             pretrained_dict = {k: v for k, v in torch.load(actor_state_dict).pi[0].state_dict().items() if k in model_dict and v.shape==model_dict[k].shape}
@@ -584,6 +588,7 @@ class TD3_team_alg:
             if d or (ep_len == max_ep_len):
                 self.logger.store(EpRet=ep_ret, EpLen=ep_len)
                 o, ep_ret, ep_len = self.env.reset(), np.array([0]*(self.home+self.away), dtype='float32'), 0
+                # switch rivals if neccesary
                 if not self.free_play and self.away>0:
                     self.rivals.append(self.away_ac)
                     self.away_ac = self.rivals.pop(0)
