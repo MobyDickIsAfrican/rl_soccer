@@ -113,10 +113,10 @@ class MLPActor(nn.Module):
         obs = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
         if self.teammates>0:
             # teammate observation
-            obs += torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1), :]) for i in range(self.teammates)], -1)
+            obs += torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1)]) for i in range(self.teammates)], -1)
         if self.rivals>0:
             # rival observation
-            obs += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1), :]]) for i in range(self.rivals)], -1)
+            obs += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1)]]) for i in range(self.rivals)], -1)
         return obs
 
     def forward(self, obs):
@@ -267,8 +267,8 @@ class MLPAC_4_team(nn.Module):
             backup = r + (gamma * (1 - d[..., np.newaxis]) * q_pi_targ)
 
         # MSE loss against Bellman backup
-        loss_q1 = torch.mean(torch.square((q1 - backup)))
-        loss_q2 = torch.mean(torch.square((q2 - backup)))
+        loss_q1 = torch.sum(torch.mean(torch.square((q1 - backup)), 0))
+        loss_q2 = torch.sum(torch.mean(torch.square((q2 - backup)), 0))
         loss_q = loss_q1 + loss_q2
 
         # Useful info for logging
@@ -287,7 +287,7 @@ class MLPAC_4_team(nn.Module):
         q1_pi = self.q1(o, self.act(o))
         # get the mean value of the q1_pi values and turn them negative
         # for gradient descent
-        return -torch.sum(torch.mean(q1_pi, axis=0))
+        return -q1_pi.mean()
 
     # update method for the networks: 
     def update(self, buffer, q_optim, pi_optim, ac_targ, timer, logger, q_param, policy_delay):
@@ -302,8 +302,7 @@ class MLPAC_4_team(nn.Module):
             # set gradiente to zero:
             if self.actual_delay >= 2*self.total_delay:
                 # freeze critic: 
-                for p in q_param:
-                    p.requires_grad = False
+                self.q1.eval()
 
                 pi_optim.zero_grad()
                 # calculate loss: 
@@ -315,8 +314,7 @@ class MLPAC_4_team(nn.Module):
                 pi_optim.step()
 
                 # unfreeze critics: 
-                for p in q_param:
-                    p.requieres_grad = True
+                self.q1.train()
 
                 # Record things
                 logger.store(team=self.team, LossPi=loss_pi.item()) 
@@ -454,7 +452,7 @@ class TD3_team_alg:
             p.requires_grad = False
         
         # List of parameters for both Q-networks (save this for convenience)
-        q_params = itertools.chain(ac.q1.parameters(), ac.q2.parameters())
+        q_params = list(itertools.chain(ac.q1.parameters(), ac.q2.parameters()))
 
         ## creation of replay buffers, we need n_players replay buffers + 1 replay buffer for the critics:
         # Experience buffer:
@@ -463,19 +461,6 @@ class TD3_team_alg:
         critic_buffer = ReplayBuffer(obs_mat, act_dim=act_mat, size=self.replay_size, rew_dim=n_players)
         var_counts = list(count_vars(module) for module in [*ac.pi, ac.q1, ac.q2])
         return ac, ac_targ, q_params, critic_buffer, var_counts
-    
-    def compute_q_loss(self, q_home_data, q_away_data):
-        q_loss = [self.home_ac.compute_q_loss(q_home_data, self.home_ac_targ, self.loss_param_dict)]
-        if self.has_rivals:
-            q_loss.append(self.away_ac.compute_q_loss(q_away_data, self.away_ac_targ, self.loss_param_dict))
-        return q_loss
-
-
-    def compute_loss_pi(self, data_home, data_away):
-        pi_loss = [self.home_ac.compute_loss_pi(data_home)]
-        if self.has_rivals:
-            pi_loss.append(self.away_ac.compute_loss_pi(data_away))
-        return pi_loss
     
     def update(self, data_home, data_away, timer):
         policy_delay = self.training_param_dict['policy_delay']
@@ -526,7 +511,7 @@ class TD3_team_alg:
             while not(d or (ep_len == max_ep_len)):
                 # Take deterministic actions at test time (noise_scale=0)
                 actions = self.get_action(o, 0)
-                o, r, d, _  = self.test_env.step([actions[0,i, :] for i in range(self.home+self.away)])
+                o, r, d, _  = self.test_env.step([actions[0, k, :] for k in range(self.home+self.away)])
                 mean_n_pass += float(np.any([o['stats_i_received_pass_10m'] or o['stats_i_received_pass_15m'] for o in self.test_env.timestep.observation[:self.home]]))
                 [vel_to_ball[j].append(self.test_env.timestep.observation[j]['stats_vel_to_ball']) for j in range(self.home)]
                 ep_ret += r
@@ -559,6 +544,8 @@ class TD3_team_alg:
 
         for t in tqdm(range(total_steps)):
             self.home_ac.actual_delay = t
+            if hasattr(self, "away_ac"): 
+                self.away_ac.actual_delay = t
             # Until start_steps have elapsed, randomly sample actions
             # from a uniform distribution for better exploration. Afterwards, 
             # use the learned policy (with some noise, via act_noise).          
@@ -575,12 +562,12 @@ class TD3_team_alg:
             ep_ret += np.array(r)
             ep_len += 1
 
-            d = False if ep_len == max_ep_len else d
+            d = False if (ep_len == max_ep_len) and not d else d
 
             # store in buffer: 
-            self.home_critic_buffer.store(o[0], a[:self.home], r[:self.home], o2[0], d)
+            self.home_critic_buffer.store(o[0][None, ...], np.vstack(a[:self.home])[None, ...] , np.hstack(r[:self.home])[None, ...], o2[0][None, ...], d)
             if self.free_play:
-                self.away_critic_buffer.store(o[1], a[self.home:], r[self.home:], o2[1], d)
+                self.away_critic_buffer.store(o[1][None, ...], a[self.home:], r[self.home:], o2[1], d)
 
             #update observation: 
             o = o2
