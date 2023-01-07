@@ -85,7 +85,7 @@ class MLPActor(nn.Module):
         pi_sizes = [outputEncDim] + list(hidden_sizes) + [act_dim]
         self.rival_offset = 18+12*self.teammates
         # setting the mlp
-        self.pi = mlp(pi_sizes, activation, nn.Tanh)
+        self.pi = mlp(pi_sizes, activation, output_activation=nn.Tanh)
         # propiocentric observation:
         propEnc =[mlp([2, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)] 
         # teammate observation:
@@ -144,7 +144,7 @@ class MLPQFunction(nn.Module):
 
         #MODEL GENERATION
         # DECODER
-        self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [max(teammates,1)], activation)
+        self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [self.n_players], activation)
         # PROPIOCENTRIC ENCODER
         propEnc = [mlp([self.prop_offset+action_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]
         # TEAMMATE OBSERVATION ENCODER
