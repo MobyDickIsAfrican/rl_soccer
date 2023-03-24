@@ -1,9 +1,8 @@
 import argparse
 from spinup.utils.logx import EpochLogger
 from math import ceil
-from TD3_team_alg_concat import TD3_team_alg
-from env_2vs0_pass import stage_soccerTraining_pass
-from env1vs0 import Env1vs0
+from learning_algorithm.TD3_team_alg_concat import TD3_team_alg
+from environments.env1vs0 import Env1vs0
 parser = argparse.ArgumentParser()
 parser.add_argument('--save_path', type=str, default="/results/1vs0Train")
 parser.add_argument('--seed', '-s', type=int, default=0)

@@ -2,13 +2,13 @@
 import numpy as np
 import random
 import matplotlib.pyplot as mpl
-from env_2vs2 import Env2vs2
-from plotter import generate_teams, generate_ball, get_angle, generate_text
+from environments.env_2vs2 import Env2vs2
+from eval_and_test.plotter import generate_teams, generate_ball, get_angle, generate_text
 from spinup.utils.test_policy import load_policy_and_env
 import matplotlib.pyplot as plt
 import torch
 from math import ceil
-from TD3_team_alg_concat import TD3_team_alg
+from learning_algorithm.TD3_team_alg_concat import TD3_team_alg
 
 mpl.rcParams['font.size'] = 11
 num_runs = 500

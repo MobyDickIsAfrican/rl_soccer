@@ -2,8 +2,8 @@ import argparse
 from email.mime import base
 from spinup.utils.logx import EpochLogger
 from math import ceil
-from TD3_team_alg_concat import TD3_team_alg
-from env_2vs2 import Env2vs2
+from learning_algorithm.TD3_team_alg_concat import TD3_team_alg
+from environments.env_2vs2 import Env2vs2
 import json
 import random
 import os
@@ -32,12 +32,12 @@ with open(os.path.join(base_path, "selected_models.json"), encoding='utf-8') as 
 
 rivals = [agents[22][0].split("\\"), agents[21][0].split("\\"), agents[19][0].split("\\")]
 rivals = [os.path.join(base_path, *a_rival) for a_rival in rivals]
-exp_kwargs = {"free_play":True, "rivals": rivals, "actor_state_dict": rivals[random.randint(0, 2)]}
+exp_kwargs = {"free_play":True}
 logger_kwargs = setup_logger_kwargs(f"td3_soccer_goal_orig_concat_2vs0_{args.control_timestep}", data_dir=args.save_path, datestamp=True)
 env_creator = lambda :   Env2vs2(team_1=2, team_2=2,task_kwargs={ "time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': args.control_timestep,  "observables": "all"}) 
 env_test_creator = lambda : Env2vs2(team_1=2, team_2=2, task_kwargs={"time_limit": args.time_limit, "disable_jump": True, 
     "dist_thresh": 0.03, 'control_timestep': 0.1, 'random_state': 69,  "observables": "all"})
-T3 = TD3_team_alg(env_creator, 2, 2, epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), 
+T3 = TD3_team_alg(2, 2,env_creator,  epochs=300,logger_kwargs= logger_kwargs, max_ep_len=ceil(args.time_limit / args.control_timestep), 
     test_fn=env_test_creator,  exp_kwargs=exp_kwargs)   
 T3.train_agents()     
