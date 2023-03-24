@@ -41,19 +41,19 @@ class Env1vs0(DmGoalWrapper):
     def getObservation(self):
         obs = self.timestep.observation
         cut_obs = []
-        ball_pos_all = [-o['ball_ego_position'][:, 1:] for o in obs]
+        ball_pos_all = [-o['ball_ego_position'][:, :2] for o in obs]
         ball_dist_scaled_all = np.array([polar_mod(ball_pos) for ball_pos in ball_pos_all]) / self.max_dist
         kickable = ball_dist_scaled_all < self.dist_thresh
         kickable_ever = self.got_kickable_rew
         ctr = 0
         for o in obs:
             ball_pos = ball_pos_all[ctr]
-            ball_vel = o["ball_ego_linear_velocity"][:, 1:]
-            op_goal_pos = -o["opponent_goal_mid"][:, 1:]
-            team_goal_pos = -o["team_goal_mid"][:, 1:]
+            ball_vel = o["ball_ego_linear_velocity"][:, :2]
+            op_goal_pos = -o["opponent_goal_mid"][:, :2]
+            team_goal_pos = -o["team_goal_mid"][:, :2]
 
-            actual_vel = o["sensors_velocimeter"][:, 1:]
-            actual_ac = o["sensors_accelerometer"][:, 1:]
+            actual_vel = o["sensors_velocimeter"][:, :2]
+            actual_ac = o["sensors_accelerometer"][:, :2]
             ball_op_goal_pos = -ball_pos + op_goal_pos
             ball_team_goal_pos = -ball_pos + team_goal_pos
             ball_goal_vel = o["stats_vel_ball_to_goal"]
@@ -79,8 +79,8 @@ class Env1vs0(DmGoalWrapper):
                             		   "kickable_ever": np.float32(np.array([kickable_ever[ctr]]))}))
 
             for player in range(self.team_2):
-                opponent_pos = -o[f"opponent_{player}_ego_position"][:, 1:]
-                opponent_vel = o[f"opponent_{player}_ego_linear_velocity"][:, 1:]
+                opponent_pos = -o[f"opponent_{player}_ego_position"][:, :2]
+                opponent_vel = o[f"opponent_{player}_ego_linear_velocity"][:, :2]
                 opponent_ball_pos = -opponent_pos + ball_pos
 
                 cut_obs[-1][f"opponent_{player}_dist_scaled"] = np.array([(polar_mod(opponent_pos) / self.max_dist)])
@@ -91,8 +91,8 @@ class Env1vs0(DmGoalWrapper):
                 cut_obs[-1][f"opponent_{player}_ball_angle_scaled"] = np.array([(polar_ang(opponent_ball_pos) / (2 * np.pi))])
 
             for player in range(self.team_1 - 1):
-                teammate_pos = -o[f"teammate_{player}_ego_position"][:, 1:]
-                teammate_vel = o[f"teammate_{player}_ego_linear_velocity"][:, 1:]
+                teammate_pos = -o[f"teammate_{player}_ego_position"][:, :2]
+                teammate_vel = o[f"teammate_{player}_ego_linear_velocity"][:, :2]
                 teammate_ball_pos = -teammate_pos + ball_pos
 
                 cut_obs[-1][f"teammate_{player}_dist_scaled"] = np.array([(polar_mod(teammate_pos) / self.max_dist)])
