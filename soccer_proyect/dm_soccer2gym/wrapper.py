@@ -319,8 +319,8 @@ class DmGoalWrapper(DmSoccerWrapper):
         if self.rew_type == "simple_v2":
             obs = self.timestep.observation
             ball_pos = [-o['ball_ego_position'][:, 1:] for o in obs] 
-            ball_op_goal_pos = [-ball_pos[i] - obs[i]["opponent_goal_mid"] for i in range(self.num_players)]
-            ball_team_goal_pos = [-ball_pos[i] - obs[i]["team_goal_mid"] for i in range(self.num_players)]
+            ball_op_goal_pos = [-ball_pos[i] - obs[i]["opponent_goal_mid"][:, :2] for i in range(self.num_players)]
+            ball_team_goal_pos = [-ball_pos[i] - obs[i]["team_goal_mid"][:, :2] for i in range(self.num_players)]
 
             ball_dist = np.array([polar_mod(ball_pos[i]) for i in range(self.num_players)]) / self.max_dist
             ball_op_goal_dist = np.array([polar_mod(ball_op_goal_pos[i]) for i in range(self.num_players)]) / self.max_dist
