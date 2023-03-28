@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import glob
 import argparse
-from eval_and_test.video_generator import generate_vid
+from video_generator import generate_vid
 def get_best_runs(success_threshold, pass_rate, path):
     model_path = os.path.join(path, "pyt_save")
     destination_folder = os.path.join(model_path, "best_models")
