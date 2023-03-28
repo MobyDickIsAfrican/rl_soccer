@@ -4,7 +4,7 @@ from collections import OrderedDict
 sigmoid = lambda x: 1 / (1 + np.exp(-x))
 arctan_yx = lambda x, y: (np.arctan(np.divide(y, x) if x != 0 and y != 0 else 0) + np.pi * (x < 0)) % (2 * np.pi)
 polar_mod = lambda x: np.sqrt(np.sum(np.square(x)))
-polar_ang = lambda x: arctan_yx(x[0, 0], x[0, 1])
+polar_ang = lambda x: arctan_yx(x[0, 1], x[0, 0])
 sqrt_2 = np.sqrt(2)
 
 def convertObservation(spec_obs):
@@ -49,11 +49,11 @@ class Env1vs0(DmGoalWrapper):
         for o in obs:
             ball_pos = ball_pos_all[ctr]
             ball_vel = o["ball_ego_linear_velocity"][:, 1:]
-            op_goal_pos = -o["opponent_goal_mid"][:, 1:]
-            team_goal_pos = -o["team_goal_mid"][:, 1:]
+            op_goal_pos = -o["opponent_goal_mid"][:, :2]
+            team_goal_pos = -o["team_goal_mid"][:,:2]
 
-            actual_vel = o["sensors_velocimeter"][:, 1:]
-            actual_ac = o["sensors_accelerometer"][:, 1:]
+            actual_vel = o["sensors_velocimeter"][:, :2]
+            actual_ac = o["sensors_accelerometer"][:, :2]
             ball_op_goal_pos = -ball_pos + op_goal_pos
             ball_team_goal_pos = -ball_pos + team_goal_pos
             ball_goal_vel = o["stats_vel_ball_to_goal"]
