@@ -4,7 +4,7 @@ from collections import OrderedDict
 sigmoid = lambda x: 1 / (1 + np.exp(-x))
 arctan_yx = lambda x, y: (np.arctan(np.divide(y, x) if x != 0 and y != 0 else 0) + np.pi * (x < 0)) % (2 * np.pi)
 polar_mod = lambda x: np.sqrt(np.sum(np.square(x)))
-polar_ang = lambda x: arctan_yx(x[0, 1], x[0, 0])
+polar_ang = lambda x: arctan_yx(x[0, 0], x[0, 1])
 sqrt_2 = np.sqrt(2)
 
 def convertObservation(spec_obs):
