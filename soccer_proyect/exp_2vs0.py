@@ -5,7 +5,7 @@ from learning_algorithm.TD3_team_alg_concat import TD3_team_alg
 from environments.env2vs0 import Env2vs0 
 parser = argparse.ArgumentParser()
 parser.add_argument('--seed', '-s', type=int, default=0)
-parser.add_argument('--save_path', type=str, default="/results/2vs2Train")
+parser.add_argument('--save_path', type=str, default="../results/2vs2Train")
 parser.add_argument('--gamma', type=float, default=0.99)
 parser.add_argument('--epochs', type=int, default=2000)
 parser.add_argument("--control_timestep", type=float, default=0.1)
