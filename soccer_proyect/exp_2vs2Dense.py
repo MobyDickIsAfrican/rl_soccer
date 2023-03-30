@@ -3,7 +3,7 @@ from email.mime import base
 from spinup.utils.logx import EpochLogger
 from math import ceil
 from learning_algorithm.TD3_team_alg_concat import TD3_team_alg
-from environments.env_2vs2 import Env2vs2
+from environments.env2vs2Dense import Env2vs2
 import json
 import random
 import os

@@ -1,10 +1,11 @@
 import torch
-from environments.env_2vs0_pass import stage_soccerTraining_pass
+from environments.env2vs0 import Env2vs0
 import time
 import numpy as np
 import pandas as pd
 import cv2
 from environments.env1vs0 import Env1vs0
+from environments.env2vs0 import Env2vs2
 from math import ceil
 import copy
 import os
@@ -28,7 +29,7 @@ def generate_vid(save_path, model_path, model_name):
 		model = torch.load(model_path)
 		max_ep_len = ceil(30 / 0.1)
 		images = []
-		env  = stage_soccerTraining_pass(team_1=2, team_2=0,task_kwargs={ "time_limit": 30, "disable_jump": True, 
+		env  = Env2vs0(team_1=2, team_2=0,task_kwargs={ "time_limit": 30, "disable_jump": True, 
 								"dist_thresh": 0.03, 'control_timestep': 0.1, "random_seed":30, "observables": "all"}, render_mode_list=[30])
 		o, d, ep_ret, ep_len = env.reset(), False, np.array([0]*(2), dtype='float32'), 0
 
@@ -83,7 +84,7 @@ def generate_2vs2_vid(save_path):
 			images.append(copy.deepcopy(np.transpose(env.render()[0], axes=[1, 0, 2])))
 			im = plt.imshow(images[-1])
 			
-			a_home = [[1, 0]]
+			a_home = [env.action_space.sample() for _ in range(1)]
 			a = [*a_home]
 			obs, r, d, _ = env.step(a)
 			ep_len += 1

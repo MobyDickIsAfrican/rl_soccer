@@ -2,7 +2,7 @@
 import numpy as np
 import random
 import matplotlib.pyplot as mpl
-from environments.env_2vs2 import Env2vs2
+from environments.env2vs2Dense import Env2vs2
 from eval_and_test.plotter import generate_teams, generate_ball, get_angle, generate_text
 from spinup.utils.test_policy import load_policy_and_env
 import matplotlib.pyplot as plt

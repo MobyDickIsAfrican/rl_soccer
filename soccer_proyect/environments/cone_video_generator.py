@@ -1,4 +1,4 @@
-from environments.env_2vs0_pass import stage_soccerTraining_pass
+from environments.env2vs0 import Env2vs0
 from eval_and_test.plotter import * 
 import os
 import torch
@@ -14,9 +14,9 @@ def generate_cone_2vs2_vid():
         max_ep_len = ceil(30 / 0.1)
         images = []
         home = 2
-        away = 0
+        away = 2
         # loadear ambiente de 2vs0 o incluso 2vs2 o 2vs1:
-        env  = stage_soccerTraining_pass(team_1=home, team_2=away,task_kwargs={ "time_limit": 30, "disable_jump": True, 
+        env  = Env2vs2(team_1=home, team_2=away,task_kwargs={ "time_limit": 30, "disable_jump": True, 
                                 "dist_thresh": 0.03, 'control_timestep': 0.1, "random_seed":30, "observables": "all"}, render_mode_list=[30])
         # Iniciar ambiente
         obs, d, ep_ret, ep_len = env.reset(), False, np.array([0]*(4), dtype='float32'), 0

@@ -1,10 +1,10 @@
 from dm_soccer2gym.wrapper import polar_mod, polar_ang, sqrt_2, sigmoid
 from collections import OrderedDict 
 import numpy as np
-from environments.env_2vs2 import Env2vs2
+from environments.env2vs2Dense import Env2vs2
 from gym import core, spaces
 
-class stage_soccerTraining_pass(Env2vs2):
+class Env2vs0(Env2vs2):
 	points =100
 	def calculate_rewards(self):
 		# we get the observation: 

@@ -7,7 +7,7 @@ import os
 from spinup.utils.test_policy import load_policy_and_env
 from spinup.utils.logx import Logger, EpochLogger
 from spinup.utils.run_utils import setup_logger_kwargs
-from environments.env_2vs0_pass import stage_soccerTraining_pass
+from environments.env2vs0 import Env2vs0
 from dm_control.locomotion.soccer.team import Team, Player
 from dm_soccer2gym.wrapper import polar_mod, polar_ang
 from dm_control.locomotion.soccer.soccer_ball import SoccerBall
@@ -56,7 +56,7 @@ def main(model_path, num, m_file):
     instance_logger.save_config(locals())
 
 
-    env  = stage_soccerTraining_pass(team_1=2, team_2=0,task_kwargs={ "time_limit": 30, "disable_jump": True, 
+    env  = Env2vs0(team_1=2, team_2=0,task_kwargs={ "time_limit": 30, "disable_jump": True, 
                                 "dist_thresh": 0.03, 'control_timestep': 0.1, "random_seed":69, "observables": "all"}) 
 
     _, get_action = load_policy_and_env(model_path, num)

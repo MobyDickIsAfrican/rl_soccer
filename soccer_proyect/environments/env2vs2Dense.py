@@ -68,7 +68,7 @@ class Env2vs2(wrap.DmGoalWrapper):
 
     def get_angle(self,rotation_matrix):
         rotation_matrix = rotation_matrix.reshape(3,3)
-        phi = np.arctan2(rotation_matrix[1,0],rotation_matrix[0,0])
+        phi = np.arctan2(rotation_matrix[-1,-2],rotation_matrix[-1,-1])
         return phi
 
     def get_positions_orientations(self, obs, i):
@@ -83,7 +83,7 @@ class Env2vs2(wrap.DmGoalWrapper):
         # get the orientation of each opponent
         opp_orientation = [self.get_angle(obs[f'opponent_{i}_ego_orientation']) for i in range(N_rivals)] 
         # get the position of each opponent:
-        opp_pos = [(-obs[f'opponent_{i}_ego_position'][0, :2]).tolist() for i in range(N_rivals)] 
+        opp_pos = [(-obs[f'opponent_{i}_ego_position'][0, 1:]).tolist() for i in range(N_rivals)] 
         return own_orientation, teammate_pos, teammate_orientation, opp_pos, opp_orientation
 
     def get_mid_cone(self, team_pos, team_ego):
@@ -194,9 +194,12 @@ class Env2vs2(wrap.DmGoalWrapper):
     
     def get_area(self, Rlim, thetaopp, y_opp, x_opp, angle_range_ego, dr, dtheta, has_centroid=True, **pass_kwargs):
         centroid = [-self.max_dist,-2*np.pi]
-        if pass_kwargs.get("pass_", False):
+        pass_ = pass_kwargs.get("pass_", False)
+        show = False
+        if pass_:
             r = pass_kwargs.get("radious")
-        else: 
+            
+        else:
             r = self.cone_radiuos
         Rv, thetav = np.meshgrid(Rlim, thetaopp)
         xval = -Rv*np.sin(thetav)
@@ -213,6 +216,18 @@ class Env2vs2(wrap.DmGoalWrapper):
             in_cone = thetaM_condition*RM_high
             intersection_area = np.sum(np.matmul(dr*dtheta*in_cone, Rlim.T))
             centroid = np.array([np.mean(RM_high), np.mean(thetaM)])
+            if pass_ and show:
+                Rlim2 = np.linspace(0, r, num=self.points)
+                thetaopp2 = np.linspace(angle_range_ego[0], angle_range_ego[1], num=self.points)
+                Rv2, thetav2 = np.meshgrid(Rlim2, thetaopp2)
+                xval2 = Rv2*np.cos(thetav2)
+                yval2 = Rv2*np.sin(thetav2)
+                Radious = np.sqrt(np.square(xval2)+np.square(yval2))
+                fig, ax2 = plt.subplots()
+                ax2.pcolor(xval2, yval2, Radious,alpha=0.3)
+                ax2.pcolor(xval+x_opp, yval+y_opp, in_cone,alpha=0.7)
+                plt.waitforbuttonpress()
+
         if has_centroid:
             return [centroid, intersection_area]
         else: 

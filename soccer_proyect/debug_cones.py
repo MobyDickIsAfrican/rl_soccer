@@ -1,0 +1,2 @@
+from eval_and_test.cone_video_generator import generate_cone_2vs2_vid
+generate_cone_2vs2_vid()
