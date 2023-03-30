@@ -238,8 +238,8 @@ class Env2vs2(wrap.DmGoalWrapper):
 
     def set_vals(self):
             obs = self.timestep.observation
-            fl = self.timestep.observation[0]["field_front_left"][:, :2]
-            br = self.timestep.observation[0]["field_back_right"][:, :2]
+            fl = self.timestep.observation[0]["field_front_left"]
+            br = self.timestep.observation[0]["field_back_right"]
 
             self.max_dist = polar_mod(fl - br)
 
@@ -250,10 +250,10 @@ class Env2vs2(wrap.DmGoalWrapper):
             self.old_ball_teammate_dist = []
 
             for i in range(self.num_players):
-                ball_pos = -obs[i]['ball_ego_position'][:, :2]
+                ball_pos = -obs[i]['ball_ego_position'][:, 1:]
                 op_goal_pos = -obs[i]["opponent_goal_mid"][:, :2]
                 tm_goal_pos = -obs[i]["team_goal_mid"][:, :2]
-                ball_teammate_vec = -ball_pos - obs[i].get("teammate_0_ego_position", np.zeros((1, 3)))[:,:2]
+                ball_teammate_vec = -ball_pos - obs[i].get("teammate_0_ego_position", np.zeros((1, 3)))[:,1:]
 
 
                 ball_op_goal_pos = -ball_pos + op_goal_pos
@@ -307,7 +307,7 @@ class Env2vs2(wrap.DmGoalWrapper):
     def getObservation(self):
             obs = self.timestep.observation
             cut_obs = []
-            ball_pos_all = [-o['ball_ego_position'][:, :2] for o in obs]
+            ball_pos_all = [-o['ball_ego_position'][:, 1:] for o in obs]
             ball_dist_scaled_all = np.array([polar_mod(ball_pos) for ball_pos in ball_pos_all]) / self.max_dist
             kickable = np.abs(ball_dist_scaled_all) < self.dist_thresh
             kickable_ever = self.got_kickable_rew
@@ -319,12 +319,12 @@ class Env2vs2(wrap.DmGoalWrapper):
                 ball_pos = ball_pos_all[ctr]
                 N_teammates = self.team_1 if i<self.team_1 else self.team_2
                 N_rivals = self.team_2 if i<self.team_1 else self.team_1
-                ball_vel = o["ball_ego_linear_velocity"][:, :2]
+                ball_vel = o["ball_ego_linear_velocity"][:, 1:]
                 op_goal_pos = -o["opponent_goal_mid"][:, :2]
                 team_goal_pos = -o["team_goal_mid"][:, :2]
 
-                actual_vel = o["sensors_velocimeter"][:, :2]
-                actual_ac = o["sensors_accelerometer"][:, :2]
+                actual_vel = o["sensors_velocimeter"][:, 1:]
+                actual_ac = o["sensors_accelerometer"][:, 1:]
                 ball_op_goal_pos = -ball_pos + op_goal_pos
                 ball_team_goal_pos = -ball_pos + team_goal_pos
                 ball_goal_vel = o["stats_vel_ball_to_goal"]
@@ -356,8 +356,8 @@ class Env2vs2(wrap.DmGoalWrapper):
                     o_intersection_centroid = intercept_areas[f"intercept_centroid_teammate_{player}"]
                     o_area_pass = intercept_areas[f"intercept_area_pass_teammate_{player}"]
                     o_centroid_pass = intercept_areas[f"intercept_centroid_pass_teammate_{player}"]
-                    teammate_pos = -o[f"teammate_{player}_ego_position"][:, :2]
-                    teammate_vel = o[f"teammate_{player}_ego_linear_velocity"][:, :2]
+                    teammate_pos = -o[f"teammate_{player}_ego_position"][:, 1:]
+                    teammate_vel = o[f"teammate_{player}_ego_linear_velocity"][:, 1:]
                     teammate_ball_pos = -teammate_pos + ball_pos
 
                     cut_obs[-1][f"teammate_{player}_dist_scaled"] = np.array([(polar_mod(teammate_pos) / self.max_dist)])
@@ -376,8 +376,8 @@ class Env2vs2(wrap.DmGoalWrapper):
                 for player in range(N_rivals):
                     o_area = intercept_areas[f'intercept_area_opponent_{player}']
                     area_interception_centroid = intercept_areas[f"intercept_centroid_opponent_{player}"]
-                    opponent_pos = -o[f"opponent_{player}_ego_position"][:, :2]
-                    opponent_vel = o[f"opponent_{player}_ego_linear_velocity"][:, :2]
+                    opponent_pos = -o[f"opponent_{player}_ego_position"][:, 1:]
+                    opponent_vel = o[f"opponent_{player}_ego_linear_velocity"][:, 1:]
                     opponent_ball_pos = -opponent_pos + ball_pos
 
                     cut_obs[-1][f"opponent_{player}_dist_scaled"] = np.array([(polar_mod(opponent_pos) / self.max_dist)])
