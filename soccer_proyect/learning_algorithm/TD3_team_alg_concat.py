@@ -109,13 +109,13 @@ class MLPActor(nn.Module):
             torch.Tensor: The encoded observations
         """
         # prop observations
-        obs = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)]) for i in range(9)], -1)
+        obs = torch.cat([self.propEncoder[i](obs[:, 2*i:2*(i+1)].clone()) for i in range(9)], -1)
         if self.teammates>0:
             # teammate observation
-            obs += torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1)]) for i in range(self.teammates)], -1)
+            obs += torch.cat([self.teammateEncoder[i](obs[:, 18 + 12*i: 18 + 12*(i+1)].clone()) for i in range(self.teammates)], -1)
         if self.rivals>0:
             # rival observation
-            obs += torch.cat([self.rivalEncoder[i](obs[obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1)]]) for i in range(self.rivals)], -1)
+            obs += torch.cat([self.rivalEncoder[i](obs[:, self.rival_offset+ 9*i: self.rival_offset + 9*(i+1)].clone()) for i in range(self.rivals)], -1)
         return obs
 
     def forward(self, obs):
@@ -170,12 +170,12 @@ class MLPQFunction(nn.Module):
         # iterate through every player
         for player in range(self.n_players): 
             # generate the propioceptive encoded observations of that player
-            obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, player, self.prop_offset*i : self.prop_offset*(i+1)], act[:, player, :]], 1)) for i in range(9)]
+            obs_prop = [self.obs_analyzer[i](torch.cat([obs[:, player, self.prop_offset*i : self.prop_offset*(i+1)].clone(), act[:, player, :].clone()], 1)) for i in range(9)]
             # generate the teammate encoded observations of that player
-            obs_teammate = [self.obs_analyzer[9 + i](obs[:, player, self.prop_offset*9 + self.teammate_offset*i : self.prop_offset*9 + self.teammate_offset*(i+1)])\
+            obs_teammate = [self.obs_analyzer[9 + i](obs[:, player, self.prop_offset*9 + self.teammate_offset*i : self.prop_offset*9 + self.teammate_offset*(i+1)].clone())\
                                  for i in range(self.teammates)]
             # generate the rival encoded observations:
-            obs_rival = [self.obs_analyzer[(9+self.teammates) + i](obs[:, player, self.rival_start+ self.rival_offset*i : self.rival_start + self.rival_offset*(i+1)])\
+            obs_rival = [self.obs_analyzer[(9+self.teammates) + i](obs[:, player, self.rival_start+ self.rival_offset*i : self.rival_start + self.rival_offset*(i+1)].clone())\
                                  for i in range(self.rival)]
             # concatenate all observations of player
             encoded_obs.append(torch.cat(obs_prop + obs_teammate + obs_rival, -1))
@@ -235,7 +235,7 @@ class MLPAC_4_team(nn.Module):
         self.q2 = MLPQFunction(obs_dim, critic_action_dim,hidden_sizes, activation, teammates, rivals)
 
     def act(self, obs):
-        return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :]),1) for i in range(len(self.pi))], axis=1)
+        return torch.cat([torch.unsqueeze(self.pi[i](obs[:, i, :].clone()),1) for i in range(len(self.pi))], axis=1)
 
     def compute_q_loss(self, data, ac_targ):
         o, a, r, o2, d = torch.Tensor(data['obs']).cuda(), torch.Tensor(data['act']).cuda(), torch.Tensor(np.array(data['rew'])).cuda(),\
@@ -331,7 +331,9 @@ class TD3_team_alg:
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
         logger_kwargs=dict(), save_freq=10, test_fn=None, exp_kwargs=dict()) -> None: 
+        # TODO CAMBIAR ESTO POST DEBUG
 
+        start_steps = 0
         self.home = home
         self.away = away
         self.__name__ = "training"
