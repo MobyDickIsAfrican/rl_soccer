@@ -331,9 +331,8 @@ class TD3_team_alg:
         update_after=10000, update_every=50, act_noise=0.1, target_noise=0.1, 
         noise_clip=0.5, policy_delay=2, num_test_episodes=50, max_ep_len=300, 
         logger_kwargs=dict(), save_freq=10, test_fn=None, exp_kwargs=dict()) -> None: 
-        # TODO CAMBIAR ESTO POST DEBUG
 
-        start_steps = 0
+        
         self.home = home
         self.away = away
         self.__name__ = "training"
