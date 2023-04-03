@@ -145,7 +145,7 @@ class MLPQFunction(nn.Module):
         # DECODER
         self.q = mlp([self.n_players*obs_dim] + list(hidden_sizes) + [self.n_players], activation)
         # PROPIOCENTRIC ENCODER
-        propEnc = [mlp([self.prop_offset+action_dim,32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]
+        propEnc = [mlp([self.prop_offset+action_dim, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(9)]
         # TEAMMATE OBSERVATION ENCODER
         teammateEnc = [mlp([12, 32, 64], activation=nn.LeakyReLU, output_activation=nn.LeakyReLU) for _ in range(teammates)]
         #RIVAL ENCODER
@@ -299,7 +299,7 @@ class MLPAC_4_team(nn.Module):
         if (timer % policy_delay) ==0:
 
             # set gradiente to zero:
-            if self.actual_delay >= 2*self.total_delay:
+            if self.actual_delay >= self.total_delay:
                 # freeze critic: 
                 self.q1.eval()
 
@@ -406,8 +406,9 @@ class TD3_team_alg:
         if not (actor_state_dict is None) and (self.away==0 or not self.free_play):
             pi_parameters = list(self.home_ac.pi.named_parameters())
             pi_trained_params, pi_train_now_params = list(), list()
+            pi_train_elements = exp_kwargs.get("train_now", [])
             for name, parameter in pi_parameters:
-                if any(map(lambda x: x in name, exp_kwargs.get("train_now", []))):
+                if any(map(lambda x: x in name, pi_train_elements)):
                     pi_train_now_params.append(parameter)
                 else: 
                     pi_trained_params.append(parameter)
@@ -429,7 +430,6 @@ class TD3_team_alg:
     def create_team(self, home_or_away, n_players, actor_critic, ac_kwargs, actor_state_dict=None):
         # Create actor-critic module and target networks for each team:
         # create actor critic agent for home team
-
         polyak = self.training_param_dict['polyak']
         ac = actor_critic(home_or_away, self.home, self.away, self.env.observation_space.shape[0], self.env.action_space, self.loss_param_dict, polyak)
         if actor_state_dict:
