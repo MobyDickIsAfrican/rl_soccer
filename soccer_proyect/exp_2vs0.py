@@ -16,7 +16,7 @@ args = parser.parse_args()
 
 from spinup.utils.run_utils import setup_logger_kwargs
 
-model_path = "soccer_proyect/trainedBaseModels/model1vs0_0.pt"
+model_path = "trainedBaseModels/model1vs0_0.pt"
 rivals = [model_path]
 exp_kwargs = {"free_play":False, "rivals": None,  "actor_state_dict": rivals[0],'train_now': ["teammateEnc"]}
 logger_kwargs = setup_logger_kwargs(f"td3_2vs0", data_dir=args.save_path, datestamp=True)

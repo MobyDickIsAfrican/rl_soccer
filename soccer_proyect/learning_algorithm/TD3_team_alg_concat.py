@@ -412,7 +412,7 @@ class TD3_team_alg:
                     pi_train_now_params.append(parameter)
                 else: 
                     pi_trained_params.append(parameter)
-            self.home_pi_optimizer = Adam([{'params': pi_train_now_params}, {'params': pi_trained_params, 'lr':pi_lr*1e-1}], lr=pi_lr)
+            self.home_pi_optimizer = Adam([{'params': pi_train_now_params}, {'params': pi_trained_params, 'lr':pi_lr}], lr=pi_lr)
             
         else:
             self.home_pi_optimizer = Adam(self.home_ac.pi.parameters(), lr=pi_lr)
