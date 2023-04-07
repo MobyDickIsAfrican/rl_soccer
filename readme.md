@@ -1,5 +1,6 @@
 ## rl_soccer proyect
 ![soccer](https://user-images.githubusercontent.com/43869722/230629863-9bd99523-9161-4f8d-87e1-6779f1eeece6.gif)
+
 In this work we investigate the possibility of learning collaborative behaviors for playing soccer through a sample efficient manner. Where agents don't need re-training in order to maintain learned behaviors of previous stages. We hypothesize that the emergence of collaborative behaviors can be induced by the use of explicit curricula for learning, specifically using goal oriented tasks. In a sample efficient manner.
    
 Thus, we propose a  multi-agent variant of Twin Delayed Deterministic Policy Gradients (TD3) algorithm along with an explicit curriculum, and a competition based training scheme, to address the 2v2 soccer problem. We divide the training process into three goal oriented stages, of increasing complexity. We divide the training process in three stages 1vs0, 2vs0, 2vs2.\\
